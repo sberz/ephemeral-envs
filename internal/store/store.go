@@ -1,28 +1,26 @@
 package store
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sync"
 	"time"
+)
 
-	"golang.org/x/exp/slog"
+const (
+	invalidEmpty = "cannot be empty"
+	invalidZero  = "cannot be zero"
+	invalidNil   = "cannot be nil"
 )
 
 // Environment is a empheral environment representation.
 type Environment struct {
-	// Name is the name of the environment provided by the label "envs.sberz.de/name".
-	Name string `json:"name"`
-
-	// CreatedAt is the timestamp when the environment was created. This is derived from the namespace creation time.
-	CreatedAt time.Time `json:"created_at"`
-
-	// Namespace is the Kubernetes namespace associated with this environment.
-	Namespace string `json:"namespace"`
-
-	// URL is a map of URLs associated with the environment, where the key is the URL type (e.g., "web", "api") and the value is the URL string.
-	// This allows for multiple URLs to be associated with the environment, such as a web URL and an API URL.
-	URL map[string]string `json:"url"`
+	CreatedAt time.Time         `json:"created_at"`
+	URL       map[string]string `json:"url"`
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
 }
 
 // IsValid checks if the environment is valid. It returns a map of problems if
@@ -30,36 +28,36 @@ type Environment struct {
 func (e *Environment) IsValid() (problems map[string]string) {
 	problems = make(map[string]string)
 	if e == nil {
-		problems["environment"] = "cannot be nil"
+		problems["environment"] = invalidNil
 		return problems
 	}
 
 	// Name must be non-empty
 	if e.Name == "" {
-		problems["name"] = "cannot be empty"
+		problems["name"] = invalidEmpty
 	}
 
 	// CreatedAt must be a valid time (not zero)
 	if e.CreatedAt.IsZero() {
-		problems["created_at"] = "cannot be zero"
+		problems["created_at"] = invalidZero
 	}
 
 	// Namespace must be non-empty
 	if e.Namespace == "" {
-		problems["namespace"] = "cannot be empty"
+		problems["namespace"] = invalidEmpty
 	}
 
 	// URL must be not be nil but can be empty
 	if e.URL == nil {
-		problems["url"] = "cannot be nil"
+		problems["url"] = invalidNil
 	} else {
 		// If URL is not nil, it can be empty but should not contain empty values
 		for k, v := range e.URL {
 			if k == "" {
-				problems["url_key"] = "cannot be empty"
+				problems["url_key"] = invalidEmpty
 			}
 			if v == "" {
-				problems["url_value"] = "cannot be empty"
+				problems["url_value"] = invalidEmpty
 			}
 		}
 	}
@@ -68,7 +66,7 @@ func (e *Environment) IsValid() (problems map[string]string) {
 }
 
 // Update updates the environment with the provided values.
-func (e *Environment) UpdateEnvironment(env Environment) error {
+func (e *Environment) UpdateEnvironment(_ context.Context, env Environment) error {
 	if env.Name != "" {
 		e.Name = env.Name
 	}
@@ -96,8 +94,8 @@ var (
 // Store manages ephemeral environments.
 // It provides methods to add, update, delete, and retrieve environments.
 type Store struct {
-	mu  sync.Mutex
 	env map[string]Environment
+	mu  sync.Mutex
 }
 
 // NewStore creates a new Store instance.
@@ -108,17 +106,17 @@ func NewStore() *Store {
 }
 
 // AddEnvironment adds a new environment to the store.
-func (s *Store) AddEnvironment(env Environment) error {
+func (s *Store) AddEnvironment(ctx context.Context, env Environment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.addEnvironment(env)
+	return s.addEnvironment(ctx, env)
 }
 
 // addEnvironment is a internal method that adds an environment to the store.
 // This method is used internally to avoid code duplication in AddEnvironment and UpdateEnvironment.
 // It does not lock the store, so it must be called with the store's mutex already held.
-func (s *Store) addEnvironment(env Environment) error {
+func (s *Store) addEnvironment(ctx context.Context, env Environment) error {
 	problems := env.IsValid()
 	if len(problems) > 0 {
 		return fmt.Errorf("%w: %v", ErrInvalidEnvironment, problems)
@@ -127,7 +125,7 @@ func (s *Store) addEnvironment(env Environment) error {
 	if _, exists := s.env[env.Name]; exists {
 		// If the environment already exists, print a warning and overwrite it.
 		// Blocking the creation would desynchronize the store with the Kubernetes events.
-		slog.Warn("environment with this name already exists, overwriting it",
+		slog.WarnContext(ctx, "environment with this name already exists, overwriting it",
 			"name", env.Name,
 			"namespace", env.Namespace,
 		)
@@ -139,7 +137,7 @@ func (s *Store) addEnvironment(env Environment) error {
 }
 
 // DeleteEnvironment removes an environment from the store by its name.
-func (s *Store) DeleteEnvironment(name string) error {
+func (s *Store) DeleteEnvironment(_ context.Context, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -149,7 +147,7 @@ func (s *Store) DeleteEnvironment(name string) error {
 }
 
 // GetEnvironment retrieves an environment by its name.
-func (s *Store) GetEnvironment(name string) (Environment, error) {
+func (s *Store) GetEnvironment(_ context.Context, name string) (Environment, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -162,7 +160,7 @@ func (s *Store) GetEnvironment(name string) (Environment, error) {
 }
 
 // GetEnvironmentCount returns the number of environments currently stored.
-func (s *Store) GetEnvironmentCount() int {
+func (s *Store) GetEnvironmentCount(_ context.Context) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -170,7 +168,7 @@ func (s *Store) GetEnvironmentCount() int {
 }
 
 // ListEnvironmentNames returns a list of all environment names currently stored.
-func (s *Store) ListEnvironmentNames() []string {
+func (s *Store) ListEnvironmentNames(_ context.Context) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -188,17 +186,17 @@ func (s *Store) ListEnvironmentNames() []string {
 // UpdateEnvironment updates an existing environment.
 // name must be the name of the environment to update. A new name can be provided
 // in the env parameter to rename the environment.
-func (s *Store) UpdateEnvironment(name string, env Environment) error {
+func (s *Store) UpdateEnvironment(ctx context.Context, name string, env Environment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	current, exists := s.env[name]
 	if !exists {
 		// If the environment does not exist, we try to add it
-		return s.addEnvironment(env)
+		return s.addEnvironment(ctx, env)
 	}
 
-	err := current.UpdateEnvironment(env)
+	err := current.UpdateEnvironment(ctx, env)
 	if err != nil {
 		return fmt.Errorf("failed to update environment %s: %w", name, err)
 	}
@@ -206,7 +204,7 @@ func (s *Store) UpdateEnvironment(name string, env Environment) error {
 	// If the new name is different, we need to replace the environment in the store
 	if env.Name != name {
 		// AddEnvironment will check for name conflicts
-		err := s.addEnvironment(current)
+		err := s.addEnvironment(ctx, current)
 		if err != nil {
 			return fmt.Errorf("failed to rename environment %s to %s: %w", name, env.Name, err)
 		}

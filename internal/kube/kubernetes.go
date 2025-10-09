@@ -47,9 +47,9 @@ func WatchNamespaceEvents(
 	ctx context.Context,
 	clientset *kubernetes.Clientset,
 	labelSelector string,
-	onAdd func(ns *corev1.Namespace),
-	onUpdate func(oldNs, newNs *corev1.Namespace),
-	onDelete func(ns *corev1.Namespace),
+	onAdd func(ctx context.Context, ns *corev1.Namespace),
+	onUpdate func(ctx context.Context, oldNs, newNs *corev1.Namespace),
+	onDelete func(ctx context.Context, ns *corev1.Namespace),
 ) error {
 	opts := informers.WithTweakListOptions(func(lo *metav1.ListOptions) {
 		lo.LabelSelector = labelSelector
@@ -58,42 +58,67 @@ func WatchNamespaceEvents(
 	factory := informers.NewSharedInformerFactoryWithOptions(clientset, time.Minute*10, opts)
 	nsInformer := factory.Core().V1().Namespaces().Informer()
 
-	nsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := nsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			ns := obj.(*corev1.Namespace)
+			ns := toNamespace(ctx, obj)
+			if ns == nil {
+				return
+			}
 			slog.DebugContext(ctx, "Namespace added", "name", ns.Name, "labels", ns.Labels)
 
 			if onAdd != nil {
-				onAdd(ns)
+				onAdd(ctx, ns)
 			} else {
 				slog.WarnContext(ctx, "onAdd handler is nil, skipping add event", "name", ns.Name)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldNs := oldObj.(*corev1.Namespace)
-			newNs := newObj.(*corev1.Namespace)
+			oldNs := toNamespace(ctx, oldObj)
+			if oldNs == nil {
+				return
+			}
+			newNs := toNamespace(ctx, newObj)
+			if newNs == nil {
+				return
+			}
 			slog.DebugContext(ctx, "Namespace updated", "name", newNs.Name, "oldLabels", oldNs.Labels, "newLabels", newNs.Labels)
 
 			if onUpdate != nil {
-				onUpdate(oldNs, newNs)
+				onUpdate(ctx, oldNs, newNs)
 			} else {
 				slog.WarnContext(ctx, "onUpdate handler is nil, skipping update event", "name", newNs.Name)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			ns := obj.(*corev1.Namespace)
+			ns := toNamespace(ctx, obj)
+			if ns == nil {
+				return
+			}
 			slog.DebugContext(ctx, "Namespace deleted", "name", ns.Name, "labels", ns.Labels)
 
 			if onDelete != nil {
-				onDelete(ns)
+				onDelete(ctx, ns)
 			} else {
 				slog.WarnContext(ctx, "onDelete handler is nil, skipping delete event", "name", ns.Name)
 			}
 		},
 	})
+	if err != nil {
+		return fmt.Errorf("failed to add event handler to namespace informer: %w", err)
+	}
 
 	factory.Start(ctx.Done())
 	factory.WaitForCacheSync(ctx.Done())
 
 	return nil
+}
+
+// toNamespace converts the object from the event handler to a *corev1.Namespace.
+func toNamespace(ctx context.Context, obj interface{}) *corev1.Namespace {
+	ns, ok := obj.(*corev1.Namespace)
+	if !ok || ns == nil {
+		slog.ErrorContext(ctx, "Received object is not a Namespace", "objectType", fmt.Sprintf("%T", obj))
+		return nil
+	}
+	return ns
 }

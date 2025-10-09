@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -92,18 +93,20 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to watch namespace events: %w", err)
 	}
 
-	slog.InfoContext(ctx, "Initial sync complete, waiting for events", "env_count", envStore.GetEnvironmentCount())
+	slog.InfoContext(ctx, "Initial sync complete, waiting for events", "env_count", envStore.GetEnvironmentCount(ctx))
 
 	// Start the HTTP server
 	slog.DebugContext(ctx, "Starting HTTP server")
 
 	server := http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Port),
-		Handler: NewServerHandler(ctx, envStore),
+		Addr:         fmt.Sprintf(":%d", cfg.Port),
+		Handler:      NewServerHandler(envStore),
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.ErrorContext(ctx, "HTTP server failed", "error", err)
 		}
 	}()
@@ -113,7 +116,7 @@ func run(ctx context.Context, args []string) error {
 	// Wait for the server to shut down gracefully
 	<-ctx.Done()
 	slog.InfoContext(ctx, "Shutting down server gracefully")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
