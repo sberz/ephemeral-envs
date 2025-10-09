@@ -1,0 +1,6 @@
+# Build Output
+bin
+
+
+# Config Files
+kind-kubeconfig.yaml
