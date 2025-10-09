@@ -2,6 +2,7 @@ package main
 
 import (
 	"log/slog"
+	"strings"
 
 	"github.com/sberz/ephemeral-envs/internal/store"
 	corev1 "k8s.io/api/core/v1"
@@ -20,10 +21,13 @@ func NewEventHandler(store *store.Store) *EventHandler {
 func (c *EventHandler) HandleNamespaceAdd(ns *corev1.Namespace) {
 	name := ns.Labels[LabelEnvName]
 
+	urls := c.buildURLMap(ns)
+
 	err := c.s.AddEnvironment(store.Environment{
 		Name:      name,
 		CreatedAt: ns.GetCreationTimestamp().Time,
 		Namespace: ns.Name,
+		URL:       urls,
 	})
 	if err != nil {
 		slog.Error("failed to add environment", "name", name, "error", err)
@@ -35,9 +39,16 @@ func (c *EventHandler) HandleNamespaceUpdate(oldNs, newNs *corev1.Namespace) {
 	oldName := oldNs.Labels[LabelEnvName]
 	newName := newNs.Labels[LabelEnvName]
 
-	err := c.s.RenameEnvironment(oldName, newName)
+	urls := c.buildURLMap(newNs)
+
+	err := c.s.UpdateEnvironment(oldName, store.Environment{
+		Name:      newName,
+		CreatedAt: newNs.GetCreationTimestamp().Time,
+		Namespace: newNs.Name,
+		URL:       urls,
+	})
 	if err != nil {
-		slog.Error("failed to rename environment", "old_name", oldName, "new_name", newName, "error", err)
+		slog.Error("failed to update environment", "old_name", oldName, "new_name", newName, "error", err)
 	}
 }
 
@@ -48,4 +59,21 @@ func (c *EventHandler) HandleNamespaceDelete(ns *corev1.Namespace) {
 	if err != nil {
 		slog.Error("failed to delete environment", "name", name, "error", err)
 	}
+}
+
+func (c *EventHandler) buildURLMap(ns *corev1.Namespace) map[string]string {
+	urls := map[string]string{}
+
+	for k, v := range ns.Annotations {
+		if !strings.HasPrefix(k, AnnotationEnvURLPrefix) {
+			continue
+		}
+
+		slog.Debug("found environment URL annotation", "key", k, "value", v)
+
+		urlName := strings.TrimPrefix(k, AnnotationEnvURLPrefix)
+		urls[urlName] = v
+	}
+
+	return urls
 }

@@ -14,7 +14,11 @@ import (
 	"github.com/sberz/ephemeral-envs/internal/store"
 )
 
-const LabelEnvName = "envs.sberz.de/name"
+const (
+	LabelEnvName = "envs.sberz.de/name"
+
+	AnnotationEnvURLPrefix = "url.envs.sberz.de/"
+)
 
 var logLevel = &slog.LevelVar{}
 
