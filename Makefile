@@ -11,6 +11,16 @@ help:
 	@echo 'Usage:'
 	@sed -n 's/^##//p' ${MAKEFILE_LIST} | column -t -s ':' |  sed -e 's/^/ /'
 
+## buld: build the project
+.PHONY: build
+build:
+	go build -o bin/autodiscovery ./cmd/autodiscovery
+
+## lint: lint the codebase
+.PHONY: lint
+lint:
+	@echo "Running linters..."
+	golangci-lint run ./...
 
 ## testing/setup: setup testing environment
 .PHONY: testing/setup
