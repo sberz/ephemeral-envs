@@ -20,3 +20,19 @@ jobs:
           version: latest
 
       - run: make build
+
+  check-chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm Chart
+        run: helm lint charts/ephemeral-envs
+
+      - name: Template Helm Chart
+        run: helm template my-release charts/ephemeral-envs
