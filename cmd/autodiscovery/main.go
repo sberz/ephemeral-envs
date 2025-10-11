@@ -24,22 +24,19 @@ const (
 var logLevel = &slog.LevelVar{}
 
 type serviceConfig struct {
-	Verbose bool
-	Port    int
+	Port int
 }
 
 func parseConfig(args []string) (*serviceConfig, error) {
 	cfg := &serviceConfig{}
 	fs := flag.NewFlagSet("autodiscovery", flag.ContinueOnError)
-	fs.BoolVar(&cfg.Verbose, "verbose", false, "Enable verbose logging")
 	fs.IntVar(&cfg.Port, "port", 8080, "Port to run the HTTP server on")
+	fs.Func("log-level", "Set the logging level (DEBUG, INFO, WARN, ERROR)", func(s string) error {
+		return logLevel.UnmarshalText([]byte(s))
+	})
 
 	if err := fs.Parse(args); err != nil {
 		return nil, fmt.Errorf("failed to parse args: %w", err)
-	}
-
-	if cfg.Verbose {
-		logLevel.Set(slog.LevelDebug)
 	}
 
 	return cfg, nil

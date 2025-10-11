@@ -45,9 +45,8 @@ spec:
               containerPort: 8080
               protocol: TCP
           args:
-            {{- if .Values.logging.verbose }}
-            - --verbose
-            {{- end }}
+            - --log-level={{ .Values.logLevel }}
+            - --port=8080
             {{- range .Values.extraArgs }}
             - {{ . }}
             {{- end }}

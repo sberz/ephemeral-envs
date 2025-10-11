@@ -11,8 +11,7 @@ image:
   pullPolicy: IfNotPresent
   tag: ""
 
-logging:
-  verbose: false
+logLevel: INFO
 
 # Pass aditional arguments to the service
 extraArgs: []
