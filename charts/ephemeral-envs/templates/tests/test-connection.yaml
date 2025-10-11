@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "ephemeral-envs.fullname" . }}-test-connection"
+  labels:
+    {{- include "ephemeral-envs.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "ephemeral-envs.fullname" . }}:{{ .Values.service.port }}/v1/environments']
+  restartPolicy: Never

@@ -1,0 +1,26 @@
+
+{{- if and .Values.podDisruptionBudget.minAvailable .Values.podDisruptionBudget.maxUnavailable }}
+{{- fail "Only one of minAvailable or maxUnavailable should be defined for PodDisruptionBudget" }}
+{{- end }}
+
+{{- if not (or .Values.podDisruptionBudget.minAvailable .Values.podDisruptionBudget.maxUnavailable) }}
+{{- fail "Either minAvailable or maxUnavailable must be defined for PodDisruptionBudget" }}
+{{- end }}
+
+{{- if .Values.podDisruptionBudget.enabled  }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ephemeral-envs.fullname" . }}
+  labels:
+    {{- include "ephemeral-envs.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ephemeral-envs.selectorLabels" . | nindent 6 }}
+  {{- if .Values.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- else if .Values.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+{{- end }}
