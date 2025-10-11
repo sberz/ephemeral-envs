@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: env-test2
+  labels:
+    envs.sberz.de/name: Test-Env.2
+  annotations:
+    url.envs.sberz.de/api: "https://api-test2.example.com"
+    url.envs.sberz.de/dashboard: "https://app-test2.example.com"

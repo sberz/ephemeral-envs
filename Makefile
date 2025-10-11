@@ -2,6 +2,10 @@
 KIND_CLUSTER_NAME ?= test-ephemeral-envs
 KIND_KUBECONFIG ?= $(abspath ./kind-kubeconfig.yaml)
 
+IMAGE_NAME ?= ghcr.io/sberz/ephemeral-envs
+IMAGE_TAG ?= local
+
+export KIND_EXPERIMENTAL_PROVIDER ?= podman
 export KUBECONFIG=$(KIND_KUBECONFIG)
 
 
@@ -15,6 +19,11 @@ help:
 .PHONY: build
 build:
 	go build -o bin/autodiscovery ./cmd/autodiscovery
+
+## build-image: build the container image
+.PHONY: build-image
+build-image:
+	podman build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
 ## lint: lint the codebase
 .PHONY: lint
@@ -37,6 +46,12 @@ testing/get-env:
 	@echo "# source <(make testing/get-env)\n"
 
 	@echo "export KUBECONFIG=$(KIND_KUBECONFIG)"
+
+## testing/load-image: Build and load Docker image into kind cluster
+.PHONY: testing/load-image
+testing/load-image: build-image
+	@echo "Loading image $(IMAGE_NAME):$(IMAGE_TAG) into kind cluster..."
+	kind load docker-image $(IMAGE_NAME):$(IMAGE_TAG) --name $(KIND_CLUSTER_NAME)
 
 ## testing/teardown: teardown testing environment
 .PHONY: testing/teardown
