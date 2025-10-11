@@ -1,0 +1,12 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": ["config:recommended", "group:allNonMajor"],
+	"configMigration": true,
+	"dependencyDashboard": false,
+	"prConcurrentLimit": 0,
+	"prHourlyLimit": 0,
+	"semanticCommits": "enabled",
+	"addLabels": ["dependencies"],
+	"assignees": ["sberz"],
+	"reviewers": ["sberz"]
+}
