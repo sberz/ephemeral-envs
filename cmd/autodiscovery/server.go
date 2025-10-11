@@ -82,14 +82,24 @@ func handleHealthCheck() http.Handler {
 }
 
 func handleListEnvironmentNames(s *store.Store) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		environments := s.ListEnvironmentNames(r.Context())
+	type response struct {
+		Environments []string `json:"environments"`
+	}
 
-		mustEncodeResponse(w, r, http.StatusOK, environments)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		res := response{
+			Environments: s.ListEnvironmentNames(r.Context()),
+		}
+
+		mustEncodeResponse(w, r, http.StatusOK, res)
 	})
 }
 
 func handleGetEnvironment(s *store.Store) http.Handler {
+	type response struct {
+		store.Environment
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 
@@ -104,7 +114,7 @@ func handleGetEnvironment(s *store.Store) http.Handler {
 			return
 		}
 
-		mustEncodeResponse(w, r, http.StatusOK, env)
+		mustEncodeResponse(w, r, http.StatusOK, response{env})
 	})
 }
 
