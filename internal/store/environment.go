@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"time"
+
+	"github.com/sberz/ephemeral-envs/internal/probe"
 )
 
 const (
@@ -13,10 +15,11 @@ const (
 
 // Environment is a empheral environment representation.
 type Environment struct {
-	CreatedAt time.Time         `json:"created_at"`
-	URL       map[string]string `json:"url"`
-	Name      string            `json:"name"`
-	Namespace string            `json:"namespace"`
+	CreatedAt    time.Time                    `json:"created_at"`
+	URL          map[string]string            `json:"url"`
+	StatusChecks map[string]probe.Probe[bool] `json:"-"`
+	Name         string                       `json:"name"`
+	Namespace    string                       `json:"namespace"`
 }
 
 // IsValid checks if the environment is valid. It returns a map of problems if
@@ -58,6 +61,20 @@ func (e *Environment) IsValid() (problems map[string]string) {
 		}
 	}
 
+	// StatusChecks must be not be nil but can be empty
+	if e.StatusChecks == nil {
+		problems["status_checks"] = invalidNil
+	} else {
+		for k, v := range e.StatusChecks {
+			if k == "" {
+				problems["status_check_key"] = invalidEmpty
+			}
+			if v == nil {
+				problems["status_check_value"] = invalidNil
+			}
+		}
+	}
+
 	return problems
 }
 
@@ -78,6 +95,10 @@ func (e *Environment) UpdateEnvironment(_ context.Context, env Environment) erro
 
 	if env.URL != nil {
 		e.URL = env.URL
+	}
+
+	if env.StatusChecks != nil {
+		e.StatusChecks = env.StatusChecks
 	}
 
 	return nil

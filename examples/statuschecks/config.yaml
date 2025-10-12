@@ -1,0 +1,27 @@
+# Example configuration file for probes
+prometheus:
+  address: http://localhost:9090
+
+  # Optional HTTP headers to include in requests to Prometheus API
+  headers:
+    # e.g. Mimir Tenant header
+    x-scope-orgid: anonymous
+
+  # Optional configuration for the Prometheus client
+  # See https://prometheus.io/docs/prometheus/latest/configuration/configuration/#http_config
+  # client_config: {}
+
+status_checks:
+  active:
+    # Query to determine if the status check passes. If the query returns a value > 0, the check is considered passing.
+    # The query must return exactly one metric value.
+    # Status check queries are templated with Go text/template. The following variables are available:
+    # - .namespace: the namespace name
+    # - .name: the environment name (from label envs.sberz.de/name)
+    query: count(kube_deployment_spec_replicas{namespace="{{.namespace}}"}) or vector(0)
+    interval: 30s
+    timeout: 2s
+  healthy:
+    query: min(kube_deployment_status_replicas_ready{namespace="{{.namespace}}"}) or vector(0)
+    interval: 30s
+    timeout: 2s

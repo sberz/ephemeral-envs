@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: env-test-statuschecks
+  labels:
+    envs.sberz.de/name: Test-Env-StatusChecks
+  annotations:
+    url.envs.sberz.de/api: "https://api-test-statuschecks.example.com"
+    url.envs.sberz.de/dashboard: "https://app-test-statuschecks.example.com"
+    status.envs.sberz.de/static-valid: "true"
+    status.envs.sberz.de/static-invalid: "some value"

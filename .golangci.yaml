@@ -29,7 +29,6 @@ linters:
     - iface
     - inamedparam
     - ineffassign
-    - ireturn
     - loggercheck
     - makezero
     - mirror

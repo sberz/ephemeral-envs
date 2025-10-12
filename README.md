@@ -83,10 +83,10 @@ The `GET /v1/environments/test/details` endpoint will return:
 The service can be instrumented with Prometheus metrics for monitoring and observability. Metrics are **disabled by default** and can be enabled by setting the `--metrics-port` flag:
 
 ```bash
-go run ./cmd/autodiscovery --metrics-port 9090
+go run ./cmd/autodiscovery --metrics-port 8090
 ```
 
-This will expose Prometheus metrics at `http://localhost:9090/metrics`.
+This will expose Prometheus metrics at `http://localhost:8090/metrics`.
 
 ## Development
 To run the service locally for development, you need a Kubernetes cluster (e.g. kind, minikube, etc.) and `kubectl` configured to access it.

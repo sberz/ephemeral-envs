@@ -69,10 +69,19 @@ func (s *Store) addEnvironment(ctx context.Context, env Environment) error {
 
 // deleteEnvironment is a internal method to remove a environment.
 // It does not lock the store, so it must be called with the store's mutex already held.
-func (s *Store) deleteEnvironment(_ context.Context, name string) error {
+func (s *Store) deleteEnvironment(ctx context.Context, name string) error {
 	env, exists := s.env[name]
 	if !exists {
 		return fmt.Errorf("%w: %s", ErrEnvironmentNotFound, name)
+	}
+
+	for k, v := range env.StatusChecks {
+		if v != nil {
+			err := v.Destroy(ctx)
+			if err != nil {
+				slog.ErrorContext(ctx, "failed to destroy status check", "check", k, "error", err)
+			}
+		}
 	}
 
 	delete(s.env, name)

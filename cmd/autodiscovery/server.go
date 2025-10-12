@@ -87,8 +87,10 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		envs := s.ListEnvironmentNames(r.Context())
+
 		res := response{
-			Environments: s.ListEnvironmentNames(r.Context()),
+			Environments: envs,
 		}
 
 		mustEncodeResponse(w, r, http.StatusOK, res)
@@ -97,6 +99,8 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 
 func handleGetEnvironment(s *store.Store) http.Handler {
 	type response struct {
+		Status        map[string]bool      `json:"status"`
+		StatusUpdated map[string]time.Time `json:"status_updated_at"`
 		store.Environment
 	}
 
@@ -114,7 +118,25 @@ func handleGetEnvironment(s *store.Store) http.Handler {
 			return
 		}
 
-		mustEncodeResponse(w, r, http.StatusOK, response{env})
+		statusChecks := make(map[string]bool)
+		statusUpdated := make(map[string]time.Time)
+		for k, v := range env.StatusChecks {
+			val, err := v.Value(r.Context())
+			if err != nil {
+				slog.ErrorContext(r.Context(), "failed to get status check value", "error", err, "name", name, "check", k)
+				statusChecks[k] = false
+			} else {
+				statusChecks[k] = val
+			}
+
+			statusUpdated[k] = v.LastUpdate()
+		}
+
+		mustEncodeResponse(w, r, http.StatusOK, response{
+			Status:        statusChecks,
+			StatusUpdated: statusUpdated,
+			Environment:   env,
+		})
 	})
 }
 

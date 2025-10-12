@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,13 +14,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sberz/ephemeral-envs/internal/kube"
+	"github.com/sberz/ephemeral-envs/internal/probe"
 	"github.com/sberz/ephemeral-envs/internal/store"
 )
 
 const (
 	LabelEnvName = "envs.sberz.de/name"
 
-	AnnotationEnvURLPrefix = "url.envs.sberz.de/"
+	AnnotationEnvURLPrefix         = "url.envs.sberz.de/"
+	AnnotationEnvStatusCheckPrefix = "status.envs.sberz.de/"
 )
 
 var logLevel = &slog.LevelVar{}
@@ -32,28 +33,6 @@ var (
 		Help: "Total number of discovered environments",
 	}
 )
-
-type serviceConfig struct {
-	MetricsPort int
-	Port        int
-}
-
-func parseConfig(args []string) (*serviceConfig, error) {
-	cfg := &serviceConfig{}
-	fs := flag.NewFlagSet("autodiscovery", flag.ContinueOnError)
-
-	fs.Func("log-level", "Set the logging level (DEBUG, INFO, WARN, ERROR)", func(s string) error {
-		return logLevel.UnmarshalText([]byte(s))
-	})
-	fs.IntVar(&cfg.MetricsPort, "metrics-port", 0, "Port to expose Prometheus metrics (0 to disable)")
-	fs.IntVar(&cfg.Port, "port", 8080, "Port to run the HTTP server on")
-
-	if err := fs.Parse(args); err != nil {
-		return nil, fmt.Errorf("failed to parse args: %w", err)
-	}
-
-	return cfg, nil
-}
 
 func main() {
 	ctx := context.Background()
@@ -93,8 +72,13 @@ func run(ctx context.Context, args []string) error {
 		return float64(envStore.GetEnvironmentCount(ctx))
 	})
 
+	statusChecks, err := setupProbers(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to set up probers: %w", err)
+	}
+
 	slog.DebugContext(ctx, "Watching namespace events")
-	controller := NewEventHandler(envStore)
+	controller := NewEventHandler(ctx, envStore, statusChecks)
 	err = kube.WatchNamespaceEvents(
 		ctx,
 		clientset,
@@ -152,4 +136,29 @@ func run(ctx context.Context, args []string) error {
 	}
 
 	return nil
+}
+
+func setupProbers(ctx context.Context, cfg *serviceConfig) (statusChecks map[string]probe.Prober[bool], err error) {
+	statusChecks = make(map[string]probe.Prober[bool])
+	var prometheus *probe.Prometheus
+
+	if len(cfg.Prometheus.Address) == 0 {
+		return statusChecks, nil
+	}
+
+	slog.DebugContext(ctx, "Setting up Prometheus client", "url", cfg.Prometheus.Address)
+	prometheus, err = probe.NewPrometheus(ctx, cfg.Prometheus)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Prometheus client: %w", err)
+	}
+
+	for name, cfg := range cfg.StatusChecks {
+		prober, err := probe.NewPrometheusProber[bool](ctx, prometheus, name, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Prometheus prober for check %q: %w", name, err)
+		}
+		statusChecks[name] = prober
+	}
+
+	return statusChecks, nil
 }
