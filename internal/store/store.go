@@ -2,100 +2,32 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
-	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
-
-const (
-	invalidEmpty = "cannot be empty"
-	invalidZero  = "cannot be zero"
-	invalidNil   = "cannot be nil"
-)
-
-// Environment is a empheral environment representation.
-type Environment struct {
-	CreatedAt time.Time         `json:"created_at"`
-	URL       map[string]string `json:"url"`
-	Name      string            `json:"name"`
-	Namespace string            `json:"namespace"`
-}
-
-// IsValid checks if the environment is valid. It returns a map of problems if
-// any validation fails.
-func (e *Environment) IsValid() (problems map[string]string) {
-	problems = make(map[string]string)
-	if e == nil {
-		problems["environment"] = invalidNil
-		return problems
-	}
-
-	// Name must be non-empty
-	if e.Name == "" {
-		problems["name"] = invalidEmpty
-	}
-
-	// CreatedAt must be a valid time (not zero)
-	if e.CreatedAt.IsZero() {
-		problems["created_at"] = invalidZero
-	}
-
-	// Namespace must be non-empty
-	if e.Namespace == "" {
-		problems["namespace"] = invalidEmpty
-	}
-
-	// URL must be not be nil but can be empty
-	if e.URL == nil {
-		problems["url"] = invalidNil
-	} else {
-		// If URL is not nil, it can be empty but should not contain empty values
-		for k, v := range e.URL {
-			if k == "" {
-				problems["url_key"] = invalidEmpty
-			}
-			if v == "" {
-				problems["url_value"] = invalidEmpty
-			}
-		}
-	}
-
-	return problems
-}
-
-// Update updates the environment with the provided values.
-func (e *Environment) UpdateEnvironment(_ context.Context, env Environment) error {
-	if env.Name != "" {
-		e.Name = env.Name
-	}
-
-	if !env.CreatedAt.IsZero() {
-		e.CreatedAt = env.CreatedAt
-	}
-
-	if env.Namespace != "" {
-		e.Namespace = env.Namespace
-	}
-
-	if env.URL != nil {
-		e.URL = env.URL
-	}
-
-	return nil
-}
 
 var (
-	ErrInvalidEnvironment  = fmt.Errorf("invalid environment")
-	ErrEnvironmentNotFound = fmt.Errorf("environment not found")
+	ErrInvalidEnvironment    = fmt.Errorf("invalid environment")
+	ErrEnvironmentNotFound   = fmt.Errorf("environment not found")
+	ErrImmutableFieldChanged = fmt.Errorf("immutable field changed")
 )
+
+var envInfo = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "env_autodiscovery_environment_info",
+	Help: "Information about the discovered environments",
+}, []string{"name", "namespace"})
 
 // Store manages ephemeral environments.
 // It provides methods to add, update, delete, and retrieve environments.
 type Store struct {
 	env map[string]Environment
-	mu  sync.Mutex
+	mu  sync.RWMutex
 }
 
 // NewStore creates a new Store instance.
@@ -103,14 +35,6 @@ func NewStore() *Store {
 	return &Store{
 		env: make(map[string]Environment),
 	}
-}
-
-// AddEnvironment adds a new environment to the store.
-func (s *Store) AddEnvironment(ctx context.Context, env Environment) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.addEnvironment(ctx, env)
 }
 
 // addEnvironment is a internal method that adds an environment to the store.
@@ -122,34 +46,62 @@ func (s *Store) addEnvironment(ctx context.Context, env Environment) error {
 		return fmt.Errorf("%w: %v", ErrInvalidEnvironment, problems)
 	}
 
-	if _, exists := s.env[env.Name]; exists {
+	if oldEnv, exists := s.env[env.Name]; exists {
 		// If the environment already exists, print a warning and overwrite it.
 		// Blocking the creation would desynchronize the store with the Kubernetes events.
 		slog.WarnContext(ctx, "environment with this name already exists, overwriting it",
 			"name", env.Name,
-			"namespace", env.Namespace,
+			"old_namespace", oldEnv.Namespace,
+			"new_namespace", env.Namespace,
 		)
+
+		err := s.deleteEnvironment(ctx, env.Name)
+		if err != nil {
+			return fmt.Errorf("could not remove previous env: %w", err)
+		}
 	}
 
 	s.env[env.Name] = env
+	envInfo.WithLabelValues(env.Name, env.Namespace).Set(1)
 
 	return nil
 }
 
-// DeleteEnvironment removes an environment from the store by its name.
-func (s *Store) DeleteEnvironment(_ context.Context, name string) error {
+// deleteEnvironment is a internal method to remove a environment.
+// It does not lock the store, so it must be called with the store's mutex already held.
+func (s *Store) deleteEnvironment(_ context.Context, name string) error {
+	env, exists := s.env[name]
+	if !exists {
+		return fmt.Errorf("%w: %s", ErrEnvironmentNotFound, name)
+	}
+
+	delete(s.env, name)
+	// Clean up the metric
+	envInfo.DeleteLabelValues(env.Name, env.Namespace)
+
+	return nil
+}
+
+// AddEnvironment adds a new environment to the store.
+func (s *Store) AddEnvironment(ctx context.Context, env Environment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.env, name)
+	return s.addEnvironment(ctx, env)
+}
 
-	return nil
+// DeleteEnvironment removes an environment from the store by its name.
+func (s *Store) DeleteEnvironment(ctx context.Context, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.deleteEnvironment(ctx, name)
 }
 
 // GetEnvironment retrieves an environment by its name.
 func (s *Store) GetEnvironment(_ context.Context, name string) (Environment, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	env, exists := s.env[name]
 	if !exists {
@@ -161,16 +113,16 @@ func (s *Store) GetEnvironment(_ context.Context, name string) (Environment, err
 
 // GetEnvironmentCount returns the number of environments currently stored.
 func (s *Store) GetEnvironmentCount(_ context.Context) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	return len(s.env)
 }
 
 // ListEnvironmentNames returns a list of all environment names currently stored.
 func (s *Store) ListEnvironmentNames(_ context.Context) []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	names := make([]string, 0, len(s.env))
 	for name := range s.env {
@@ -197,21 +149,25 @@ func (s *Store) UpdateEnvironment(ctx context.Context, name string, env Environm
 	}
 
 	err := current.UpdateEnvironment(ctx, env)
-	if err != nil {
+	switch {
+	case err == nil:
+		s.env[env.Name] = current
+	case errors.Is(err, ErrImmutableFieldChanged):
+		// Immutable fields were changed, we need to delete and re-add the environment
+		slog.InfoContext(ctx, "immutable fields changed, re-adding environment",
+			"old_name", name,
+			"new_name", env.Name,
+			"namespace", env.Namespace,
+		)
+
+		err = s.deleteEnvironment(ctx, name)
+		if err != nil {
+			return fmt.Errorf("could not remove previous env: %w", err)
+		}
+		return s.addEnvironment(ctx, env)
+	default:
 		return fmt.Errorf("failed to update environment %s: %w", name, err)
 	}
 
-	// If the new name is different, we need to replace the environment in the store
-	if env.Name != name {
-		// AddEnvironment will check for name conflicts
-		err := s.addEnvironment(ctx, current)
-		if err != nil {
-			return fmt.Errorf("failed to rename environment %s to %s: %w", name, env.Name, err)
-		}
-
-		delete(s.env, name)
-	}
-
-	s.env[current.Name] = current
 	return nil
 }
