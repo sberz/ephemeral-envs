@@ -1,4 +1,3 @@
-
 KIND_CLUSTER_NAME ?= test-ephemeral-envs
 KIND_KUBECONFIG ?= $(abspath ./kind-kubeconfig.yaml)
 
@@ -15,7 +14,7 @@ help:
 	@echo 'Usage:'
 	@sed -n 's/^##//p' ${MAKEFILE_LIST} | column -t -s ':' |  sed -e 's/^/ /'
 
-## buld: build the project
+## build: build the project
 .PHONY: build
 build:
 	go build -o bin/autodiscovery ./cmd/autodiscovery
@@ -31,12 +30,26 @@ lint:
 	@echo "Running linters..."
 	golangci-lint run ./...
 
+## testing/setup/cluster: setup kind cluster for testing
+.PHONY: testing/setup/cluster
+testing/setup/cluster:
+	@echo "Setting up kind cluster for testing..."; \
+	if kind get clusters | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
+		echo "Cluster $(KIND_CLUSTER_NAME) already exists. Skipping creation."; \
+		exit 0; \
+	fi; \
+	kind create cluster --name test-ephemeral-envs; \
+	echo "Cluster created. Kubeconfig is available at $(KIND_KUBECONFIG)."
+
 ## testing/setup: setup testing environment
 .PHONY: testing/setup
-testing/setup:
-	@echo "Setting up testing environment..."
-	@kind create cluster --name test-ephemeral-envs
-	@echo "Cluster created. Kubeconfig is available at $(KIND_KUBECONFIG)."
+testing/setup: testing/setup/cluster
+	@echo "Installing additional components into the cluster..."
+	@echo "Installing kube-prometheus-stack. This may take a while..."
+	helm install kube-prometheus-stack oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
+		--namespace monitoring --create-namespace --wait
+	@echo "Setup complete."
+
 
 ## testing/get-env: export environment variables for testing
 .PHONY: testing/get-env

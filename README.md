@@ -12,8 +12,8 @@ The simplest way to get started is to use the provided Helm chart available in t
 You can install it with the following command:
 
 ```bash
-helm install ephemeral-envs oci://ghcr.io/sberz/charts/ephemeral-envs --version 0.1.0
-```
+helm install ephemeral-envs oci://ghcr.io/sberz/charts/ephemeral-envs
+ ```
 
 You can find all configuration options in the [values.yaml](./charts/ephemeral-envs/values.yaml) file.
 
@@ -77,6 +77,16 @@ The `GET /v1/environments/test/details` endpoint will return:
 	}
 }
 ```
+
+## Monitoring
+
+The service can be instrumented with Prometheus metrics for monitoring and observability. Metrics are **disabled by default** and can be enabled by setting the `--metrics-port` flag:
+
+```bash
+go run ./cmd/autodiscovery --metrics-port 9090
+```
+
+This will expose Prometheus metrics at `http://localhost:9090/metrics`.
 
 ## Development
 To run the service locally for development, you need a Kubernetes cluster (e.g. kind, minikube, etc.) and `kubectl` configured to access it.

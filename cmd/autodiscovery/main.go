@@ -11,6 +11,9 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sberz/ephemeral-envs/internal/kube"
 	"github.com/sberz/ephemeral-envs/internal/store"
 )
@@ -23,17 +26,27 @@ const (
 
 var logLevel = &slog.LevelVar{}
 
+var (
+	envTotalOpt = prometheus.GaugeOpts{
+		Name: "env_autodiscovery_environments_total",
+		Help: "Total number of discovered environments",
+	}
+)
+
 type serviceConfig struct {
-	Port int
+	MetricsPort int
+	Port        int
 }
 
 func parseConfig(args []string) (*serviceConfig, error) {
 	cfg := &serviceConfig{}
 	fs := flag.NewFlagSet("autodiscovery", flag.ContinueOnError)
-	fs.IntVar(&cfg.Port, "port", 8080, "Port to run the HTTP server on")
+
 	fs.Func("log-level", "Set the logging level (DEBUG, INFO, WARN, ERROR)", func(s string) error {
 		return logLevel.UnmarshalText([]byte(s))
 	})
+	fs.IntVar(&cfg.MetricsPort, "metrics-port", 0, "Port to expose Prometheus metrics (0 to disable)")
+	fs.IntVar(&cfg.Port, "port", 8080, "Port to run the HTTP server on")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, fmt.Errorf("failed to parse args: %w", err)
@@ -76,6 +89,10 @@ func run(ctx context.Context, args []string) error {
 
 	envStore := store.NewStore()
 
+	promauto.NewGaugeFunc(envTotalOpt, func() float64 {
+		return float64(envStore.GetEnvironmentCount(ctx))
+	})
+
 	slog.DebugContext(ctx, "Watching namespace events")
 	controller := NewEventHandler(envStore)
 	err = kube.WatchNamespaceEvents(
@@ -93,7 +110,7 @@ func run(ctx context.Context, args []string) error {
 	slog.InfoContext(ctx, "Initial sync complete, waiting for events", "env_count", envStore.GetEnvironmentCount(ctx))
 
 	// Start the HTTP server
-	slog.DebugContext(ctx, "Starting HTTP server")
+	slog.DebugContext(ctx, "Starting HTTP server", "port", cfg.Port)
 
 	server := http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
@@ -105,8 +122,22 @@ func run(ctx context.Context, args []string) error {
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.ErrorContext(ctx, "HTTP server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
+
+	if cfg.MetricsPort != 0 {
+		slog.DebugContext(ctx, "Starting metrics server", "port", cfg.MetricsPort)
+
+		http.Handle("/metrics", promhttp.Handler())
+		go func() {
+			//nolint:gosec // G114 - not relevant for this internal only server
+			if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.MetricsPort), nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				slog.ErrorContext(ctx, "Metrics server failed", "error", err)
+				os.Exit(1)
+			}
+		}()
+	}
 
 	slog.InfoContext(ctx, "Autodiscovery service started", "address", server.Addr)
 

@@ -5,8 +5,17 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sberz/ephemeral-envs/internal/store"
 	corev1 "k8s.io/api/core/v1"
+)
+
+var (
+	eventsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "env_autodiscovery_events_processed_total",
+		Help: "Total number of processed Kubernetes events",
+	}, []string{"event_type", "status"})
 )
 
 type EventHandler struct {
@@ -32,6 +41,9 @@ func (c *EventHandler) HandleNamespaceAdd(ctx context.Context, ns *corev1.Namesp
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to add environment", "name", name, "error", err)
+		eventsProcessed.WithLabelValues("namespace_add", "error").Inc()
+	} else {
+		eventsProcessed.WithLabelValues("namespace_add", "success").Inc()
 	}
 }
 
@@ -50,6 +62,9 @@ func (c *EventHandler) HandleNamespaceUpdate(ctx context.Context, oldNs, newNs *
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to update environment", "old_name", oldName, "new_name", newName, "error", err)
+		eventsProcessed.WithLabelValues("namespace_update", "error").Inc()
+	} else {
+		eventsProcessed.WithLabelValues("namespace_update", "success").Inc()
 	}
 }
 
@@ -59,6 +74,9 @@ func (c *EventHandler) HandleNamespaceDelete(ctx context.Context, ns *corev1.Nam
 	err := c.s.DeleteEnvironment(ctx, name)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to delete environment", "name", name, "error", err)
+		eventsProcessed.WithLabelValues("namespace_delete", "error").Inc()
+	} else {
+		eventsProcessed.WithLabelValues("namespace_delete", "success").Inc()
 	}
 }
 
