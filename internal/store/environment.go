@@ -103,3 +103,24 @@ func (e *Environment) UpdateEnvironment(_ context.Context, env Environment) erro
 
 	return nil
 }
+
+func (e *Environment) MatchesStatus(ctx context.Context, state map[string]bool) bool {
+	for check, filterValue := range state {
+		probe, exists := e.StatusChecks[check]
+		if !exists {
+			// Count missing checks as value false
+			if filterValue {
+				return false
+			}
+			continue
+		}
+
+		// Ignore the error, if the check fails, the value will be false
+		val, _ := probe.Value(ctx)
+		if val != filterValue {
+			return false
+		}
+	}
+
+	return true
+}

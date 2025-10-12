@@ -33,6 +33,10 @@ Once the service is running, you can access the REST API to list and get details
 The API endpoints are:
 
 -   `GET /v1/environments`: List all ephemeral environment names.
+	- Optional query parameters:
+		- `namespace`: Filter by namespace.
+		- `status`: Filter by status of status checks (e.g. `status=healthy`). Can be negated with `status=!healthy`. Multiple status checks can be combined with commas (e.g. `status=active,!healthy`).
+
 -   `GET /v1/environments/{name}/details`: Get details about a specific ephemeral environment.
 
 ### Defining Ephemeral Environments

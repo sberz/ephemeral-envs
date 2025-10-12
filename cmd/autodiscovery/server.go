@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/sberz/ephemeral-envs/internal/store"
@@ -87,13 +88,32 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		envs := s.ListEnvironmentNames(r.Context())
+		filterNamespace := r.URL.Query().Get("namespace")
+		filterStatus := parseStatusFilter(r)
 
-		res := response{
-			Environments: envs,
+		slog.InfoContext(r.Context(), "listing environments", "namespace", filterNamespace, "status", filterStatus)
+
+		envs := []string{}
+
+		switch {
+		case filterNamespace != "":
+			env, err := s.GetEnvironmentByNamespace(r.Context(), filterNamespace)
+			if err != nil && !errors.Is(err, store.ErrEnvironmentNotFound) {
+				slog.ErrorContext(r.Context(), "failed to get environments by namespace", "error", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			if len(filterStatus) == 0 || env.MatchesStatus(r.Context(), filterStatus) {
+				envs = []string{env.Name}
+			}
+		case len(filterStatus) > 0:
+			envs = s.GetEnvironmentNamesWithState(r.Context(), filterStatus)
+		default:
+			envs = s.ListEnvironmentNames(r.Context())
 		}
 
-		mustEncodeResponse(w, r, http.StatusOK, res)
+		mustEncodeResponse(w, r, http.StatusOK, response{Environments: envs})
 	})
 }
 
@@ -161,4 +181,22 @@ func mustEncodeResponse[T any](w http.ResponseWriter, r *http.Request, status in
 		slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
 		panic(fmt.Errorf("mustEncodeResponse failed: %w", err))
 	}
+}
+
+func parseStatusFilter(r *http.Request) map[string]bool {
+	query := strings.Join(r.URL.Query()["status"], ",")
+	filter := make(map[string]bool)
+
+	if query == "" {
+		return filter
+	}
+
+	for _, f := range strings.Split(query, ",") {
+		if strings.HasPrefix(f, "!") {
+			filter[strings.TrimPrefix(f, "!")] = false
+		} else {
+			filter[f] = true
+		}
+	}
+	return filter
 }

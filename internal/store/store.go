@@ -120,6 +120,38 @@ func (s *Store) GetEnvironment(_ context.Context, name string) (Environment, err
 	return env, nil
 }
 
+// GetEnvironmentByNamespace retrieves an environment by its namespace.
+func (s *Store) GetEnvironmentByNamespace(_ context.Context, namespace string) (Environment, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, env := range s.env {
+		if env.Namespace == namespace {
+			return env, nil
+		}
+	}
+
+	return Environment{}, fmt.Errorf("%w: namespace %s", ErrEnvironmentNotFound, namespace)
+}
+
+// GetEnvironmentNamesWithState returns a list of environment names that match the provided status check states.
+func (s *Store) GetEnvironmentNamesWithState(ctx context.Context, state map[string]bool) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	envs := []string{}
+	for name, env := range s.env {
+		if env.MatchesStatus(ctx, state) {
+			envs = append(envs, name)
+		}
+
+		// Sort the names for consistent ordering
+		slices.Sort(envs)
+	}
+
+	return envs
+}
+
 // GetEnvironmentCount returns the number of environments currently stored.
 func (s *Store) GetEnvironmentCount(_ context.Context) int {
 	s.mu.RLock()
