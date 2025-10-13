@@ -60,3 +60,11 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{- define "ephemeral-envs.configMapName" -}}
+{{- if .Values.existingConfigmap }}
+{{- .Values.existingConfigmap }}
+{{- else if .Values.config.prometheus.address }}
+{{- include "ephemeral-envs.fullname" . }}-config
+{{- end }}
+{{- end }}

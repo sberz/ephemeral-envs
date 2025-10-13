@@ -13,10 +13,16 @@ spec:
       {{- include "ephemeral-envs.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/config: {{ toYaml .Values.config | sha256sum }}
+        {{- if .Values.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.metrics.port }}"
+        prometheus.io/path: "/metrics"
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "ephemeral-envs.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
@@ -44,9 +50,20 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: http-metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
           args:
             - --log-level={{ .Values.logLevel }}
             - --port=8080
+            {{- if .Values.metrics.enabled }}
+            - --metrics-port={{ .Values.metrics.port }}
+            {{- end }}
+            {{- if include "ephemeral-envs.configMapName" . }}
+            - --config=/etc/ephemeral-envs/config.yaml
+            {{- end }}
             {{- range .Values.extraArgs }}
             - {{ . }}
             {{- end }}
@@ -70,12 +87,24 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
+          {{- if include "ephemeral-envs.configMapName" . }}
+            - name: config
+              mountPath: /etc/ephemeral-envs
+          {{- end }}
+          {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.volumes }}
       volumes:
+      {{- if include "ephemeral-envs.configMapName" . }}
+        - name: config
+          configMap:
+            name: {{ include "ephemeral-envs.configMapName" . }}
+            items:
+              - key: {{if .Values.existingConfigmap }}{{ .Values.existingConfigmapKey }}{{ else }}config.yaml{{ end }}
+                path: config.yaml
+      {{- end}}
+      {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.nodeSelector }}

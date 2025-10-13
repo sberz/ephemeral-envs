@@ -13,6 +13,30 @@ image:
 
 logLevel: INFO
 
+metrics:
+  enabled: true
+  port: 8090
+
+# Provide the configuration file for the service.
+# Structured configuration will be converted to YAML.
+config:
+  prometheus:
+    address: ""
+    headers: {}
+  status_checks: {}
+    # active:
+    #   query: count(kube_deployment_spec_replicas{namespace="{{.namespace}}"}) or vector(0)
+    #   interval: 30s
+    #   timeout: 2s
+    # healthy:
+    #   query: min(kube_deployment_status_replicas_ready{namespace="{{.namespace}}"}) or vector(0)
+    #   interval: 30s
+    #   timeout: 2s
+
+# name of an existing ConfigMap containing the configuration file
+existingConfigmap: ""
+existingConfigmapKey: "config.yaml"
+
 # Pass aditional arguments to the service
 extraArgs: []
 
