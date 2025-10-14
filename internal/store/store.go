@@ -120,6 +120,19 @@ func (s *Store) GetEnvironment(_ context.Context, name string) (Environment, err
 	return env, nil
 }
 
+// GetAllEnvironments retrieves all environments in the store.
+func (s *Store) GetAllEnvironments(_ context.Context) []Environment {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	envs := make([]Environment, 0, len(s.env))
+	for _, env := range s.env {
+		envs = append(envs, env)
+	}
+
+	return envs
+}
+
 // GetEnvironmentByNamespace retrieves an environment by its namespace.
 func (s *Store) GetEnvironmentByNamespace(_ context.Context, namespace string) (Environment, error) {
 	s.mu.RLock()

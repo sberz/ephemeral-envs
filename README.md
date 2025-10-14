@@ -38,6 +38,9 @@ The API endpoints are:
         - `status`: Filter by status of status checks (e.g. `status=healthy`). Can be negated with `status=!healthy`. Multiple status checks can be combined with commas (e.g. `status=active,!healthy`).
 
 - `GET /v1/environment/{name}`: Get details about a specific ephemeral environment.
+- `GET /v1/environment/all`: Get details about all ephemeral environments.
+	- Optional query parameters:
+		- `withStatus`: Comma-separated list of status checks to include in the response (e.g. `withStatus=active`).
 
 ### Defining Ephemeral Environments
 
@@ -84,6 +87,37 @@ The `GET /v1/environment/test` endpoint will return:
 	},
 	"name": "test",
 	"namespace": "env-test"
+}
+```
+
+The `GET /v1/environment/all` endpoint will return:
+
+```json
+{
+	"environments": [
+		{
+			"status": {},
+			"statusUpdatedAt": {},
+			"createdAt": "2025-10-11T20:30:00Z",
+			"url": {
+				"api": "https://api-test.example.com",
+				"dashboard": "https://app-test.example.com"
+			},
+			"name": "test",
+			"namespace": "env-test"
+		},
+		{
+			"status": {},
+			"statusUpdatedAt": {},
+			"createdAt": "2025-10-11T20:30:00Z",
+			"url": {
+				"api": "https://api-test2.example.com",
+				"dashboard": "https://app-test2.example.com"
+			},
+			"name": "Test-Env-2.0",
+			"namespace": "env-test2"
+		}
+	]
 }
 ```
 

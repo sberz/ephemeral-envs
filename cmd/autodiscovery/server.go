@@ -32,6 +32,7 @@ func NewServerHandler(store *store.Store) http.Handler {
 
 	mux.Handle("GET /health", handleHealthCheck())
 	mux.Handle("GET /v1/environment", handleListEnvironmentNames(store))
+	mux.Handle("GET /v1/environment/all", handleGetAllEnvironments(store))
 	mux.Handle("GET /v1/environment/{name}", handleGetEnvironment(store))
 
 	// Register Middleware for logging
@@ -158,6 +159,46 @@ func handleGetEnvironment(s *store.Store) http.Handler {
 			StatusUpdated: statusUpdated,
 			Environment:   env,
 		})
+	})
+}
+
+func handleGetAllEnvironments(s *store.Store) http.Handler {
+	type response struct {
+		Environments []environmentResponse `json:"environments"`
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		includeStatus := parseStatusFilter(r, "withStatus")
+		envs := s.GetAllEnvironments(r.Context())
+		res := make([]environmentResponse, 0, len(envs))
+
+		for _, env := range envs {
+			statusChecks := make(map[string]bool)
+			statusUpdated := make(map[string]time.Time)
+			for k, v := range env.StatusChecks {
+				if val, ok := includeStatus[k]; !ok || !val {
+					continue
+				}
+
+				val, err := v.Value(r.Context())
+				if err != nil {
+					slog.ErrorContext(r.Context(), "failed to get status check value", "error", err, "name", env.Name, "check", k)
+					statusChecks[k] = false
+				} else {
+					statusChecks[k] = val
+				}
+
+				statusUpdated[k] = v.LastUpdate()
+			}
+
+			res = append(res, environmentResponse{
+				Status:        statusChecks,
+				StatusUpdated: statusUpdated,
+				Environment:   env,
+			})
+		}
+
+		mustEncodeResponse(w, r, http.StatusOK, response{Environments: res})
 	})
 }
 
