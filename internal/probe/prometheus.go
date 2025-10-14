@@ -16,7 +16,7 @@ import (
 
 type PrometheusConfig struct {
 	// ClientConfig provides all Prometheus HTTTP authentication options
-	ClientConfig config.HTTPClientConfig `yaml:"client_config,omitempty"`
+	ClientConfig config.HTTPClientConfig `yaml:"clientConfig,omitempty"`
 	// Additional HTTP headers to include in requests to Prometheus API.
 	// An easier way to set simple headers. This will override the headers in ClientConfig.
 	Headers map[string]string `yaml:"headers,omitempty"`

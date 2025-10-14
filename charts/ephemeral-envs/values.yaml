@@ -23,7 +23,7 @@ config:
   prometheus:
     address: ""
     headers: {}
-  status_checks: {}
+  statusChecks: {}
     # active:
     #   query: count(kube_deployment_spec_replicas{namespace="{{.namespace}}"}) or vector(0)
     #   interval: 30s

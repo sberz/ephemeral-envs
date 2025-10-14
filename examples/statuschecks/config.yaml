@@ -9,9 +9,9 @@ prometheus:
 
   # Optional configuration for the Prometheus client
   # See https://prometheus.io/docs/prometheus/latest/configuration/configuration/#http_config
-  # client_config: {}
+  # clientConfig: {}
 
-status_checks:
+statusChecks:
   active:
     # Query to determine if the status check passes. If the query returns a value > 0, the check is considered passing.
     # The query must return exactly one metric value.

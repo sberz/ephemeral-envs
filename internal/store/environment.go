@@ -15,7 +15,7 @@ const (
 
 // Environment is a empheral environment representation.
 type Environment struct {
-	CreatedAt    time.Time                    `json:"created_at"`
+	CreatedAt    time.Time                    `json:"createdAt"`
 	URL          map[string]string            `json:"url"`
 	StatusChecks map[string]probe.Probe[bool] `json:"-"`
 	Name         string                       `json:"name"`
@@ -38,7 +38,7 @@ func (e *Environment) IsValid() (problems map[string]string) {
 
 	// CreatedAt must be a valid time (not zero)
 	if e.CreatedAt.IsZero() {
-		problems["created_at"] = invalidZero
+		problems["createdAt"] = invalidZero
 	}
 
 	// Namespace must be non-empty
@@ -53,24 +53,24 @@ func (e *Environment) IsValid() (problems map[string]string) {
 		// If URL is not nil, it can be empty but should not contain empty values
 		for k, v := range e.URL {
 			if k == "" {
-				problems["url_key"] = invalidEmpty
+				problems["urlKey"] = invalidEmpty
 			}
 			if v == "" {
-				problems["url_value"] = invalidEmpty
+				problems["urlValue"] = invalidEmpty
 			}
 		}
 	}
 
 	// StatusChecks must be not be nil but can be empty
 	if e.StatusChecks == nil {
-		problems["status_checks"] = invalidNil
+		problems["statusChecks"] = invalidNil
 	} else {
 		for k, v := range e.StatusChecks {
 			if k == "" {
-				problems["status_check_key"] = invalidEmpty
+				problems["statusCheckKey"] = invalidEmpty
 			}
 			if v == nil {
-				problems["status_check_value"] = invalidNil
+				problems["statusCheckValue"] = invalidNil
 			}
 		}
 	}

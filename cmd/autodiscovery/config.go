@@ -19,7 +19,7 @@ type serviceConfig struct {
 }
 
 type configFile struct {
-	StatusChecks map[string]probe.Config `yaml:"status_checks"`
+	StatusChecks map[string]probe.Config `yaml:"statusChecks"`
 	Prometheus   probe.PrometheusConfig  `yaml:"prometheus"`
 }
 
@@ -32,12 +32,12 @@ func (c *configFile) validate() error {
 	for name, check := range c.StatusChecks {
 		// Name must be a valid label value
 		if !nameRegex.MatchString(name) {
-			return fmt.Errorf("status_checks.%s: %w", name, errInvalidKey)
+			return fmt.Errorf("statusChecks.%s: %w", name, errInvalidKey)
 		}
 
 		checkErr := check.Validate()
 		if checkErr != nil {
-			return fmt.Errorf("status_checks.%s: %w", name, checkErr)
+			return fmt.Errorf("statusChecks.%s: %w", name, checkErr)
 		}
 	}
 	return nil

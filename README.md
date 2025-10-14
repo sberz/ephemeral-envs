@@ -74,7 +74,7 @@ The `GET /v1/environments/test/details` endpoint will return:
 {
 	"name": "test",
 	"namespace": "env-test",
-	"created_at": "2025-10-11T20:30:00Z",
+	"createdAt": "2025-10-11T20:30:00Z",
 	"url": {
 		"api": "https://api-test.example.com",
 		"dashboard": "https://app-test.example.com"

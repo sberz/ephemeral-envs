@@ -120,7 +120,7 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 func handleGetEnvironment(s *store.Store) http.Handler {
 	type response struct {
 		Status        map[string]bool      `json:"status"`
-		StatusUpdated map[string]time.Time `json:"status_updated_at"`
+		StatusUpdated map[string]time.Time `json:"statusUpdatedAt"`
 		store.Environment
 	}
 
