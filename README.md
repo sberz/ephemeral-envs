@@ -13,18 +13,18 @@ You can install it with the following command:
 
 ```bash
 helm install ephemeral-envs oci://ghcr.io/sberz/charts/ephemeral-envs
- ```
+```
 
 You can find all configuration options in the [values.yaml](./charts/ephemeral-envs/values.yaml) file.
 
 ## Usage
 
 This service makes a few assumptions about how ephemeral environments are defined in the cluster.
+
 - Each ephemeral environment is represented by a Kubernetes namespace.
 - Each namespace has a label `envs.sberz.de/name` with the name of the environment.
 - Environment names must be unique across all namespaces.
 - Additional information about the environment can be provided via annotations on the namespace or dynamic providers (coming soon).
-
 
 ### Accessing the Service
 
@@ -32,12 +32,12 @@ Once the service is running, you can access the REST API to list and get details
 
 The API endpoints are:
 
--   `GET /v1/environments`: List all ephemeral environment names.
-	- Optional query parameters:
-		- `namespace`: Filter by namespace.
-		- `status`: Filter by status of status checks (e.g. `status=healthy`). Can be negated with `status=!healthy`. Multiple status checks can be combined with commas (e.g. `status=active,!healthy`).
+- `GET /v1/environment`: List all ephemeral environment names.
+    - Optional query parameters:
+        - `namespace`: Filter by namespace.
+        - `status`: Filter by status of status checks (e.g. `status=healthy`). Can be negated with `status=!healthy`. Multiple status checks can be combined with commas (e.g. `status=active,!healthy`).
 
--   `GET /v1/environments/{name}/details`: Get details about a specific ephemeral environment.
+- `GET /v1/environment/{name}`: Get details about a specific ephemeral environment.
 
 ### Defining Ephemeral Environments
 
@@ -45,7 +45,7 @@ To mark a namespace as an ephemeral environment, add the label `envs.sberz.de/na
 
 Add annotations to provide additional information about the environment:
 
--   Annotation `url.envs.sberz.de/<endpoint-name>: <url>`: Define URLs for different endpoints (e.g., API, dashboard, etc.).
+- Annotation `url.envs.sberz.de/<endpoint-name>: <url>`: Define URLs for different endpoints (e.g., API, dashboard, etc.).
 
 #### Example
 
@@ -57,28 +57,33 @@ kubectl apply -f examples/basic
 
 This will add two environments: `test` and `Test-Env-2.0`.
 
-The `GET /v1/environments` endpoint will return:
+The `GET /v1/environment` endpoint will return:
 
 ```json
 {
-	"environments": [
-		"Test-Env-2.0",
-		"test"
-	]
+	"environments": ["Test-Env-2.0", "test"]
 }
 ```
 
-The `GET /v1/environments/test/details` endpoint will return:
+The `GET /v1/environment/test` endpoint will return:
 
 ```json
 {
-	"name": "test",
-	"namespace": "env-test",
+	"status": {
+		"active": false,
+		"healthy": false
+	},
+	"statusUpdatedAt": {
+		"active": "2025-10-11T20:30:00Z",
+		"healthy": "2025-10-11T20:30:00Z"
+	},
 	"createdAt": "2025-10-11T20:30:00Z",
 	"url": {
 		"api": "https://api-test.example.com",
 		"dashboard": "https://app-test.example.com"
-	}
+	},
+	"name": "test",
+	"namespace": "env-test"
 }
 ```
 
@@ -93,6 +98,7 @@ go run ./cmd/autodiscovery --metrics-port 8090
 This will expose Prometheus metrics at `http://localhost:8090/metrics`.
 
 ## Development
+
 To run the service locally for development, you need a Kubernetes cluster (e.g. kind, minikube, etc.) and `kubectl` configured to access it.
 
 There are a few Makefile targets to help with development. To get started quickly, you can use:

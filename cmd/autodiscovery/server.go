@@ -31,8 +31,8 @@ func NewServerHandler(store *store.Store) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /health", handleHealthCheck())
-	mux.Handle("GET /v1/environments", handleListEnvironmentNames(store))
-	mux.Handle("GET /v1/environments/{name}/details", handleGetEnvironment(store))
+	mux.Handle("GET /v1/environment", handleListEnvironmentNames(store))
+	mux.Handle("GET /v1/environment/{name}", handleGetEnvironment(store))
 
 	// Register Middleware for logging
 	var handler http.Handler = mux
@@ -55,6 +55,7 @@ func middlewareLogging(next http.Handler) http.Handler {
 		slog.InfoContext(r.Context(), "request completed",
 			"method", r.Method,
 			"path", r.URL.Path,
+			"args", r.URL.Query(),
 			"remote_addr", r.RemoteAddr,
 			"duration_us", duration.Microseconds(),
 			"status", rec.status,
@@ -89,7 +90,7 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		filterNamespace := r.URL.Query().Get("namespace")
-		filterStatus := parseStatusFilter(r)
+		filterStatus := parseStatusFilter(r, "status")
 
 		slog.InfoContext(r.Context(), "listing environments", "namespace", filterNamespace, "status", filterStatus)
 
@@ -117,13 +118,13 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 	})
 }
 
-func handleGetEnvironment(s *store.Store) http.Handler {
-	type response struct {
-		Status        map[string]bool      `json:"status"`
-		StatusUpdated map[string]time.Time `json:"statusUpdatedAt"`
-		store.Environment
-	}
+type environmentResponse struct {
+	Status        map[string]bool      `json:"status"`
+	StatusUpdated map[string]time.Time `json:"statusUpdatedAt"`
+	store.Environment
+}
 
+func handleGetEnvironment(s *store.Store) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 
@@ -152,7 +153,7 @@ func handleGetEnvironment(s *store.Store) http.Handler {
 			statusUpdated[k] = v.LastUpdate()
 		}
 
-		mustEncodeResponse(w, r, http.StatusOK, response{
+		mustEncodeResponse(w, r, http.StatusOK, environmentResponse{
 			Status:        statusChecks,
 			StatusUpdated: statusUpdated,
 			Environment:   env,
@@ -183,8 +184,8 @@ func mustEncodeResponse[T any](w http.ResponseWriter, r *http.Request, status in
 	}
 }
 
-func parseStatusFilter(r *http.Request) map[string]bool {
-	query := strings.Join(r.URL.Query()["status"], ",")
+func parseStatusFilter(r *http.Request, param string) map[string]bool {
+	query := strings.Join(r.URL.Query()[param], ",")
 	filter := make(map[string]bool)
 
 	if query == "" {
