@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/sberz/ephemeral-envs/internal/probe"
@@ -20,6 +22,12 @@ type Environment struct {
 	StatusChecks map[string]probe.Probe[bool] `json:"-"`
 	Name         string                       `json:"name"`
 	Namespace    string                       `json:"namespace"`
+}
+
+type EnvironmentResponse struct {
+	Status        map[string]bool      `json:"status"`
+	StatusUpdated map[string]time.Time `json:"statusUpdatedAt"`
+	Environment
 }
 
 // IsValid checks if the environment is valid. It returns a map of problems if
@@ -123,4 +131,39 @@ func (e *Environment) MatchesStatus(ctx context.Context, state map[string]bool) 
 	}
 
 	return true
+}
+
+// ResolveProbes resolves the probes for the environment using the provided prober.
+// The statusChecks slice contains the names of the probes to resolve. If nil, all
+// probes in the environment will be resolved. Empty slice means no probes will be resolved.
+func (e *Environment) ResolveProbes(ctx context.Context, status map[string]bool) (EnvironmentResponse, error) {
+	res := EnvironmentResponse{
+		Environment:   *e,
+		Status:        make(map[string]bool),
+		StatusUpdated: make(map[string]time.Time),
+	}
+
+	if e.StatusChecks != nil && len(e.StatusChecks) == 0 {
+		return res, nil
+	}
+
+	for name, probe := range e.StatusChecks {
+		if status != nil {
+			if val, ok := status[name]; !ok || !val {
+				// Skip this probe, it's not in the list of probes to resolve or it's set to false
+				continue
+			}
+		}
+
+		val, err := probe.Value(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to get status check value", "error", err, "name", e.Name, "check", name)
+			return res, fmt.Errorf("failed to get status check value for probe %q: %w", name, err)
+		}
+
+		res.Status[name] = val
+		res.StatusUpdated[name] = probe.LastUpdate()
+	}
+
+	return res, nil
 }

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -125,12 +127,9 @@ func (s *Store) GetAllEnvironments(_ context.Context) []Environment {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	envs := make([]Environment, 0, len(s.env))
-	for _, env := range s.env {
-		envs = append(envs, env)
-	}
-
-	return envs
+	return slices.SortedFunc(maps.Values(s.env), func(a, b Environment) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 }
 
 // GetEnvironmentByNamespace retrieves an environment by its namespace.
@@ -178,15 +177,7 @@ func (s *Store) ListEnvironmentNames(_ context.Context) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	names := make([]string, 0, len(s.env))
-	for name := range s.env {
-		names = append(names, name)
-	}
-
-	// Sort the names for consistent ordering
-	slices.Sort(names)
-
-	return names
+	return slices.Sorted(maps.Keys(s.env))
 }
 
 // UpdateEnvironment updates an existing environment.

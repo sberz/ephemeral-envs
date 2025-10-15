@@ -135,12 +135,6 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 	})
 }
 
-type environmentResponse struct {
-	Status        map[string]bool      `json:"status"`
-	StatusUpdated map[string]time.Time `json:"statusUpdatedAt"`
-	store.Environment
-}
-
 func handleGetEnvironment(s *store.Store) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
@@ -156,62 +150,34 @@ func handleGetEnvironment(s *store.Store) http.Handler {
 			return
 		}
 
-		statusChecks := make(map[string]bool)
-		statusUpdated := make(map[string]time.Time)
-		for k, v := range env.StatusChecks {
-			val, err := v.Value(r.Context())
-			if err != nil {
-				slog.ErrorContext(r.Context(), "failed to get status check value", "error", err, "name", name, "check", k)
-				statusChecks[k] = false
-			} else {
-				statusChecks[k] = val
-			}
-
-			statusUpdated[k] = v.LastUpdate()
+		es, err := env.ResolveProbes(r.Context(), nil)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to resolve probes for environment", "error", err, "name", name)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
-
-		mustEncodeResponse(w, r, http.StatusOK, environmentResponse{
-			Status:        statusChecks,
-			StatusUpdated: statusUpdated,
-			Environment:   env,
-		})
+		mustEncodeResponse(w, r, http.StatusOK, es)
 	})
 }
 
 func handleGetAllEnvironments(s *store.Store) http.Handler {
 	type response struct {
-		Environments []environmentResponse `json:"environments"`
+		Environments []store.EnvironmentResponse `json:"environments"`
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		includeStatus := parseStatusFilter(r, "withStatus")
 		envs := s.GetAllEnvironments(r.Context())
-		res := make([]environmentResponse, 0, len(envs))
+		res := make([]store.EnvironmentResponse, 0, len(envs))
 
 		for _, env := range envs {
-			statusChecks := make(map[string]bool)
-			statusUpdated := make(map[string]time.Time)
-			for k, v := range env.StatusChecks {
-				if val, ok := includeStatus[k]; !ok || !val {
-					continue
-				}
-
-				val, err := v.Value(r.Context())
-				if err != nil {
-					slog.ErrorContext(r.Context(), "failed to get status check value", "error", err, "name", env.Name, "check", k)
-					statusChecks[k] = false
-				} else {
-					statusChecks[k] = val
-				}
-
-				statusUpdated[k] = v.LastUpdate()
+			es, err := env.ResolveProbes(r.Context(), includeStatus)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "failed to resolve probes for environment", "error", err, "name", env.Name)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
 			}
-
-			res = append(res, environmentResponse{
-				Status:        statusChecks,
-				StatusUpdated: statusUpdated,
-				Environment:   env,
-			})
+			res = append(res, es)
 		}
 
 		mustEncodeResponse(w, r, http.StatusOK, response{Environments: res})
