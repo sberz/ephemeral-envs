@@ -7,20 +7,20 @@ import (
 	"regexp"
 
 	"github.com/goccy/go-yaml"
-	"github.com/sberz/ephemeral-envs/internal/probe"
+	"github.com/sberz/ephemeral-envs/internal/prometheus"
 )
 
 type serviceConfig struct {
-	Prometheus   probe.PrometheusConfig
-	StatusChecks map[string]probe.Config
+	Prometheus   prometheus.Config
+	StatusChecks map[string]prometheus.BaseQueryConfig
 	configFile   string
 	MetricsPort  int
 	Port         int
 }
 
 type configFile struct {
-	StatusChecks map[string]probe.Config `yaml:"statusChecks"`
-	Prometheus   probe.PrometheusConfig  `yaml:"prometheus"`
+	StatusChecks map[string]prometheus.BaseQueryConfig `yaml:"statusChecks"`
+	Prometheus   prometheus.Config                     `yaml:"prometheus"`
 }
 
 var (
