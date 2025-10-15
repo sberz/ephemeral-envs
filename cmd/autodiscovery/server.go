@@ -38,6 +38,7 @@ func NewServerHandler(store *store.Store) http.Handler {
 	// Register Middleware for logging
 	var handler http.Handler = mux
 	handler = middlewarePanicRecovery(handler)
+	handler = middlewareCORS(handler)
 	handler = middlewareLogging(handler)
 
 	return handler
@@ -72,6 +73,21 @@ func middlewarePanicRecovery(next http.Handler) http.Handler {
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			}
 		}(r.Context())
+		next.ServeHTTP(w, r)
+	})
+}
+
+func middlewareCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// This server doesn't require Authentication, so sefelisted CORS will do
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
