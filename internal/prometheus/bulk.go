@@ -1,0 +1,161 @@
+package prometheus
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sync"
+	"time"
+
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
+)
+
+type BulkValueQuery struct {
+	lastQuery  time.Time
+	Prometheus *Prometheus
+	registered map[string]*environmentQuery
+	valCache   map[string]model.Sample
+	cfg        QueryConfig
+	mu         sync.Mutex
+}
+
+func NewBulkValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) (*BulkValueQuery, error) {
+	err := cfg.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	if cfg.Kind != QueryKindBulk {
+		return nil, fmt.Errorf("%w: %s for bulk value query", ErrInvalidQueryKind, cfg.Kind)
+	}
+
+	slog.DebugContext(ctx, "Creating bulk value Prometheus query", "name", cfg.Name, "query_kind", cfg.Kind, "query", cfg.Query, "interval", cfg.Interval.String(), "timeout", cfg.Timeout.String(), "match_on", cfg.MatchOn, "match_label", cfg.MatchLabel)
+
+	return &BulkValueQuery{
+		Prometheus: &prom,
+		cfg:        cfg,
+		registered: make(map[string]*environmentQuery),
+		valCache:   make(map[string]model.Sample),
+	}, nil
+}
+
+func (q *BulkValueQuery) matchKey(name, namespace string) string {
+	switch q.cfg.MatchOn {
+	case QueryMatchOnEnvName:
+		return name
+	case QueryMatchOnNamespace:
+		return namespace
+	default:
+		return ""
+	}
+}
+
+func (q *BulkValueQuery) AddEnvironment(name string, namespace string) (QueryExecutor, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	match := q.matchKey(name, namespace)
+
+	if _, ok := q.registered[match]; ok {
+		return nil, fmt.Errorf("%w: %s", ErrAlreadyRegistered, name)
+	}
+
+	q.registered[match] = &environmentQuery{
+		query:      q,
+		envName:    name,
+		namespace:  namespace,
+		registered: true,
+	}
+
+	return q.registered[match], nil
+}
+
+func (q *BulkValueQuery) Config() QueryConfig {
+	return q.cfg
+}
+
+func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string, namespace string) (model.Sample, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	log := slog.With("name", q.cfg.Name, "query_kind", q.cfg.Kind, "env_name", envName, "env_namespace", namespace, "query", q.cfg.Query)
+
+	match := q.matchKey(envName, namespace)
+	if _, ok := q.registered[match]; !ok {
+		return model.ZeroSample, ErrNotRegistered
+	}
+
+	val, ok := q.valCache[match]
+	if ok && time.Since(q.lastQuery) < q.cfg.Interval {
+		return val, nil
+	}
+
+	// Need to perform a new bulk query
+	// reset the cache
+	q.valCache = make(map[string]model.Sample)
+
+	// Perform the bulk query
+	log.DebugContext(ctx, "Executing Prometheus query")
+	res, warnings, err := q.Prometheus.apiClient.Query(
+		ctx, q.cfg.Query, time.Now(),
+		v1.WithTimeout(q.cfg.Timeout),
+	)
+	if err != nil {
+		return model.ZeroSample, fmt.Errorf("query failed: %w", err)
+	}
+	if len(warnings) > 0 {
+		log.WarnContext(ctx, "Prometheus query succeeded with warnings", "warnings", warnings)
+	}
+
+	samples, ok := res.(model.Vector)
+	if !ok {
+		return model.ZeroSample, fmt.Errorf("unexpected result type %T: %w", res, ErrResultNotParsable)
+	}
+	if len(samples) == 0 {
+		log.WarnContext(ctx, "Prometheus query returned no results")
+	}
+
+	log.DebugContext(ctx, "Prometheus query returned a result", "result", samples)
+
+	// Map the samples to the environment queries
+	for _, sample := range samples {
+		key := string(sample.Metric[model.LabelName(q.cfg.MatchLabel)])
+
+		if _, ok = q.registered[key]; !ok {
+			log.DebugContext(ctx, "Received result for unregistered environment", "match_key", key, "match_label", q.cfg.MatchLabel, "value", sample)
+			continue
+		}
+
+		if time.Since(samples[0].Timestamp.Time()).Abs() > sampleDriftAllowance {
+			log.WarnContext(ctx, "Prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
+		}
+
+		q.valCache[key] = *sample
+	}
+
+	q.lastQuery = time.Now()
+	val, ok = q.valCache[match]
+	if !ok {
+		// No result for this environment, don't treat as an error as the environment may legitimately have no data
+		// i.e: during creation or if the probe condition is not met
+		log.WarnContext(ctx, "No result for registered environment after bulk query", "match_key", match)
+		return model.ZeroSample, nil
+	}
+
+	return val, nil
+}
+
+func (q *BulkValueQuery) removeEnvironment(_ context.Context, name string, namespace string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	match := q.matchKey(name, namespace)
+
+	if _, ok := q.registered[match]; !ok {
+		return fmt.Errorf("%w: %s", ErrNotRegistered, name)
+	}
+
+	delete(q.registered, match)
+	return nil
+}

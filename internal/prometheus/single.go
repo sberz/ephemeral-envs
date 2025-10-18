@@ -28,7 +28,7 @@ func NewSingleValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) 
 	}
 
 	if cfg.Kind != QueryKindSingleValue {
-		return nil, fmt.Errorf("invalid query kind %s for single value query: %w", cfg.Kind, errInvalidVal)
+		return nil, fmt.Errorf("%w: %s for single value query", ErrInvalidQueryKind, cfg.Kind)
 	}
 
 	t, err := template.New("query").Option("missingkey=error").Parse(cfg.Query)
@@ -36,7 +36,7 @@ func NewSingleValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) 
 		return nil, fmt.Errorf("failed to parse query template: %w", err)
 	}
 
-	slog.DebugContext(ctx, "Creating single value Prometheus query", "query", cfg.Query, "interval", cfg.Interval.String(), "timeout", cfg.Timeout.String())
+	slog.DebugContext(ctx, "Creating single value Prometheus query", "name", cfg.Name, "query_kind", cfg.Kind, "query", cfg.Query, "interval", cfg.Interval.String(), "timeout", cfg.Timeout.String())
 
 	return &SingleValueQuery{
 		Prometheus: &prom,
@@ -48,7 +48,7 @@ func NewSingleValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) 
 func (q *SingleValueQuery) AddEnvironment(name string, namespace string) (QueryExecutor, error) {
 	return &environmentQuery{
 		query:      q,
-		name:       name,
+		envName:    name,
 		namespace:  namespace,
 		registered: true,
 	}, nil
@@ -59,7 +59,7 @@ func (q *SingleValueQuery) Config() QueryConfig {
 }
 
 func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string, namespace string) (model.Sample, error) {
-	log := slog.With("env_name", name, "env_namespace", namespace)
+	log := slog.With("name", q.cfg.Name, "query_kind", q.cfg.Kind, "env_name", name, "env_namespace", namespace)
 	tplData := map[string]string{
 		"name":      name,
 		"namespace": namespace,
@@ -102,6 +102,10 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 	}
 
 	log.DebugContext(ctx, "Prometheus query returned a result", "result", samples[0])
+
+	if time.Since(samples[0].Timestamp.Time()).Abs() > sampleDriftAllowance {
+		log.WarnContext(ctx, "Prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
+	}
 
 	return *samples[0], nil
 }

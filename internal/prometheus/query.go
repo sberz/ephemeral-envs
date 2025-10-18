@@ -12,8 +12,18 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+const (
+	// sampleDriftAllowance is the maximum allowed time difference between
+	// the current time and the sample timestamp before considering the sample stale.
+	// The caching assumes that samples are recent enough to be valid for the cache duration.
+	sampleDriftAllowance = 500 * time.Millisecond
+)
+
 var (
 	errInvalidVal        = fmt.Errorf("invalid value")
+	ErrInvalidQueryKind  = fmt.Errorf("invalid query kind")
+	ErrAlreadyRegistered = fmt.Errorf("environment already registered")
+	ErrNotRegistered     = fmt.Errorf("environment not registered")
 	ErrResultNotFound    = fmt.Errorf("result not found")
 	ErrTooManyResults    = fmt.Errorf("too many results")
 	ErrResultNotParsable = fmt.Errorf("result not parseable")
@@ -91,7 +101,7 @@ type environmentQuery struct {
 	lastStored model.Sample
 	lastUpdate time.Time
 	query      EnvironmentQuerier
-	name       string
+	envName    string
 	namespace  string
 	registered bool
 	mu         sync.RWMutex
@@ -211,7 +221,7 @@ func (q *environmentQuery) sample(ctx context.Context) (model.Sample, error) {
 	defer q.mu.Unlock()
 
 	if !q.registered {
-		return model.ZeroSample, fmt.Errorf("environment not registered: %w", ErrResultNotFound)
+		return model.ZeroSample, ErrNotRegistered
 	}
 
 	// If the last query was recent enough, return the cached value
@@ -222,13 +232,14 @@ func (q *environmentQuery) sample(ctx context.Context) (model.Sample, error) {
 	// Need to perform a new query
 
 	var sample model.Sample
-	sample, err := q.query.queryForEnvironment(ctx, q.name, q.namespace)
+	sample, err := q.query.queryForEnvironment(ctx, q.envName, q.namespace)
 	if err != nil {
 		return model.ZeroSample, fmt.Errorf("failed to query Prometheus for value: %w", err)
 	}
 
 	q.lastStored = sample
-	q.lastUpdate = time.Now()
+	// Use the sample timestamp as the last update time, to avoid stacking cache durations
+	q.lastUpdate = cmp.Or(sample.Timestamp.Time(), time.Now())
 
 	return sample, nil
 }
@@ -248,5 +259,5 @@ func (q *environmentQuery) Destroy(ctx context.Context) error {
 	q.lastUpdate = time.Time{}
 	q.registered = false
 
-	return q.query.removeEnvironment(ctx, q.name, q.namespace)
+	return q.query.removeEnvironment(ctx, q.envName, q.namespace)
 }

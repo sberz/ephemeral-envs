@@ -34,7 +34,17 @@ func NewPrometheusProber[V Type](ctx context.Context, prom *prometheus.Prometheu
 		return nil, fmt.Errorf("prom and converter must be provided: %w", ErrInvalidNil)
 	}
 
-	query, err := prometheus.NewSingleValueQuery(ctx, *prom, cfg)
+	var query prometheus.EnvironmentQuerier
+	var err error
+
+	switch cfg.Kind {
+	case prometheus.QueryKindSingleValue:
+		query, err = prometheus.NewSingleValueQuery(ctx, *prom, cfg)
+	case prometheus.QueryKindBulk:
+		query, err = prometheus.NewBulkValueQuery(ctx, *prom, cfg)
+	default:
+		return nil, fmt.Errorf("%w: %s", prometheus.ErrInvalidQueryKind, cfg.Kind)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Prometheus query: %w", err)
 	}
