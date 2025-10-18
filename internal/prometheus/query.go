@@ -1,11 +1,15 @@
 package prometheus
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"html/template"
 	"io"
+	"sync"
 	"time"
+
+	"github.com/prometheus/common/model"
 )
 
 var (
@@ -35,6 +39,13 @@ type BulkQueryConfig struct {
 type EnvironmentQuerier interface {
 	// AddEnvironment registers a new environment to be queried.
 	AddEnvironment(name string, namespace string) (QueryExecutor, error)
+	// Config returns the base query configuration.
+	Config() BaseQueryConfig
+	// queryForEnvironment executes the query for the given environment, returning the raw Prometheus sample.
+	// The environment must have been previously registered via AddEnvironment.
+	queryForEnvironment(ctx context.Context, name string, namespace string) (model.Sample, error)
+	// removeEnvironment deregisters the environment.
+	removeEnvironment(ctx context.Context, name string, namespace string) error
 }
 
 // QueryExecutor is the interface for executing Prometheus queries and retrieving results.
@@ -52,7 +63,19 @@ type QueryExecutor interface {
 	Destroy(ctx context.Context) error
 }
 
-func (c *BaseQueryConfig) Validate() error {
+type environmentQuery struct {
+	lastStored model.Sample
+	lastUpdate time.Time
+	query      EnvironmentQuerier
+	name       string
+	namespace  string
+	registered bool
+	mu         sync.RWMutex
+}
+
+var _ QueryExecutor = (*environmentQuery)(nil)
+
+func (c BaseQueryConfig) Validate() error {
 
 	// The query must be a valid Template
 	if c.Query == "" {
@@ -71,7 +94,7 @@ func (c *BaseQueryConfig) Validate() error {
 	return nil
 }
 
-func (c *SingleValueQueryConfig) Validate() error {
+func (c SingleValueQueryConfig) Validate() error {
 	err := c.BaseQueryConfig.Validate()
 	if err != nil {
 		return err
@@ -94,7 +117,7 @@ func (c *SingleValueQueryConfig) Validate() error {
 	return nil
 }
 
-func (c *BulkQueryConfig) Validate() error {
+func (c BulkQueryConfig) Validate() error {
 	err := c.BaseQueryConfig.Validate()
 	if err != nil {
 		return err
@@ -117,4 +140,73 @@ func (c *BulkQueryConfig) Validate() error {
 	}
 
 	return nil
+}
+
+func (q *environmentQuery) Value(ctx context.Context) (float64, error) {
+	sample, err := q.sample(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return float64(sample.Value), nil
+}
+
+func (q *environmentQuery) Text(ctx context.Context) (string, error) {
+	sample, err := q.sample(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	extract := model.LabelName(q.query.Config().ExtractLabel)
+	label := string(sample.Metric[extract])
+
+	return cmp.Or(label, sample.Value.String(), ""), nil
+}
+
+func (q *environmentQuery) sample(ctx context.Context) (model.Sample, error) {
+	// Technically the first half only needs a read lock, but upgrading is messy
+	// and prone to deadlocks. The cached operation are fast enough that this shouldn't
+	// cause real performance issues.
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if !q.registered {
+		return model.ZeroSample, fmt.Errorf("environment not registered: %w", ErrResultNotFound)
+	}
+
+	// If the last query was recent enough, return the cached value
+	if time.Since(q.lastUpdate) < q.query.Config().Interval {
+		return q.lastStored, nil
+	}
+
+	// Need to perform a new query
+
+	var sample model.Sample
+	sample, err := q.query.queryForEnvironment(ctx, q.name, q.namespace)
+	if err != nil {
+		return model.ZeroSample, fmt.Errorf("failed to query Prometheus for value: %w", err)
+	}
+
+	q.lastStored = sample
+	q.lastUpdate = time.Now()
+
+	return sample, nil
+}
+
+func (q *environmentQuery) LastUpdate() time.Time {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	return q.lastUpdate
+}
+
+func (q *environmentQuery) Destroy(ctx context.Context) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	q.lastStored = model.ZeroSample
+	q.lastUpdate = time.Time{}
+	q.registered = false
+
+	return q.query.removeEnvironment(ctx, q.name, q.namespace)
 }

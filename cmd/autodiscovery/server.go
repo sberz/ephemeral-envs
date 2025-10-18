@@ -116,15 +116,21 @@ func handleListEnvironmentNames(s *store.Store) http.Handler {
 		switch {
 		case filterNamespace != "":
 			env, err := s.GetEnvironmentByNamespace(r.Context(), filterNamespace)
-			if err != nil && !errors.Is(err, store.ErrEnvironmentNotFound) {
-				slog.ErrorContext(r.Context(), "failed to get environments by namespace", "error", err)
+			switch {
+			case err == nil:
+				// Environment found
+				if len(filterStatus) == 0 || env.MatchesStatus(r.Context(), filterStatus) {
+					envs = []string{env.Name}
+				}
+			case errors.Is(err, store.ErrEnvironmentNotFound):
+				// No environments found for the namespace
+				envs = []string{}
+			default:
+				slog.ErrorContext(r.Context(), "failed to get environment by namespace", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 
-			if len(filterStatus) == 0 || env.MatchesStatus(r.Context(), filterStatus) {
-				envs = []string{env.Name}
-			}
 		case len(filterStatus) > 0:
 			envs = s.GetEnvironmentNamesWithState(r.Context(), filterStatus)
 		default:
