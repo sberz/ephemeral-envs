@@ -46,8 +46,10 @@ testing/setup/cluster:
 testing/setup: testing/setup/cluster
 	@echo "Installing additional components into the cluster..."
 	@echo "Installing kube-prometheus-stack. This may take a while..."
-	helm install kube-prometheus-stack oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
-		--namespace monitoring --create-namespace --wait
+	helm upgrade --install kube-prometheus-stack oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
+		--namespace monitoring --create-namespace --wait \
+		--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+
 	@echo "Setup complete."
 
 

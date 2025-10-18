@@ -17,6 +17,14 @@ metrics:
   enabled: true
   port: 8090
 
+serviceMonitor:
+  enabled: false
+  honorLabels: true
+  interval: ""
+  additionalLabels: {}
+  metricRelabelings: []
+  relabelings: []
+
 # Provide the configuration file for the service.
 # Structured configuration will be converted to YAML.
 config:
