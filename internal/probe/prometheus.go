@@ -22,23 +22,19 @@ type PrometheusProbe[V Type] struct {
 var _ Probe[bool] = (*PrometheusProbe[bool])(nil)
 
 type PrometheusProber[V Type] struct {
-	query     *prometheus.SingleValueQuery
+	query     prometheus.EnvironmentQuerier
 	converter ConverterFunc[V]
 }
 
 var _ Prober[bool] = (*PrometheusProber[bool])(nil)
 
 // NewPrometheusProber creates a prober that uses Prometheus to determine the value.
-func NewPrometheusProber[V Type](ctx context.Context, prom *prometheus.Prometheus, cfg prometheus.BaseQueryConfig, converter ConverterFunc[V]) (*PrometheusProber[V], error) {
+func NewPrometheusProber[V Type](ctx context.Context, prom *prometheus.Prometheus, cfg prometheus.QueryConfig, converter ConverterFunc[V]) (*PrometheusProber[V], error) {
 	if prom == nil || converter == nil {
 		return nil, fmt.Errorf("prom and converter must be provided: %w", ErrInvalidNil)
 	}
 
-	singleCfg := prometheus.SingleValueQueryConfig{
-		BaseQueryConfig: cfg,
-	}
-
-	query, err := prometheus.NewSingleValueQuery(ctx, *prom, singleCfg)
+	query, err := prometheus.NewSingleValueQuery(ctx, *prom, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Prometheus query: %w", err)
 	}

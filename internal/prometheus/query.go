@@ -19,28 +19,52 @@ var (
 	ErrResultNotParsable = fmt.Errorf("result not parseable")
 )
 
-type BaseQueryConfig struct {
-	Query        string        `yaml:"query"`
-	ExtractLabel string        `yaml:"extract_label,omitempty"`
-	Interval     time.Duration `yaml:"interval"`
-	Timeout      time.Duration `yaml:"timeout"`
-}
+type QueryKind string
 
-type SingleValueQueryConfig struct {
-	// Embed the base BaseQueryConfig
-	BaseQueryConfig `yaml:",inline"`
-}
+const (
+	QueryKindSingleValue QueryKind = "single"
+	QueryKindBulk        QueryKind = "bulk"
+)
 
-type BulkQueryConfig struct {
-	MatchLabel      string `yaml:"match_label"`
-	BaseQueryConfig `yaml:",inline"`
+type QueryMatchOn string
+
+const (
+	QueryMatchOnEnvName   QueryMatchOn = "name"
+	QueryMatchOnNamespace QueryMatchOn = "namespace"
+)
+
+type QueryConfig struct {
+	// Name is the unique name of the query (automatically set from config key)
+	Name string `yaml:"name"`
+	// Kind is the type of query to perform (`single` value or `bulk`)
+	Kind QueryKind `yaml:"kind"`
+	// Query is the Prometheus query template to execute
+	// For single value queries, the template can use the following fields:
+	//   - name: the environment name
+	//   - namespace: the environment namespace
+	// For bulk queries, no template fields are available
+	Query string `yaml:"query"`
+	// ExtractLabel is the label to extract from the result as the string representation
+	// only used for string metadata queries
+	ExtractLabel string `yaml:"extractLabel"`
+
+	// MatchOn (bulk only) is the property used to match results to an environments.
+	// valid values: name, namespace
+	MatchOn QueryMatchOn `yaml:"matchOn"`
+	// MatchLabel (bulk only) is the label of the query result used for matching.
+	MatchLabel string `yaml:"matchLabel"`
+
+	// Interval is the minimum duration between query executions
+	Interval time.Duration `yaml:"interval"`
+	// Timeout is the maximum duration to wait for a query to complete
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 type EnvironmentQuerier interface {
 	// AddEnvironment registers a new environment to be queried.
 	AddEnvironment(name string, namespace string) (QueryExecutor, error)
 	// Config returns the base query configuration.
-	Config() BaseQueryConfig
+	Config() QueryConfig
 	// queryForEnvironment executes the query for the given environment, returning the raw Prometheus sample.
 	// The environment must have been previously registered via AddEnvironment.
 	queryForEnvironment(ctx context.Context, name string, namespace string) (model.Sample, error)
@@ -75,7 +99,11 @@ type environmentQuery struct {
 
 var _ QueryExecutor = (*environmentQuery)(nil)
 
-func (c BaseQueryConfig) Validate() error {
+func (c QueryConfig) Validate() error {
+	// Name must be set
+	if c.Name == "" {
+		return fmt.Errorf("name must be set: %w", errInvalidVal)
+	}
 
 	// The query must be a valid Template
 	if c.Query == "" {
@@ -91,15 +119,25 @@ func (c BaseQueryConfig) Validate() error {
 	if c.Timeout >= c.Interval {
 		return fmt.Errorf("timeout must be less than interval: %w", errInvalidVal)
 	}
+
+	// Kind must be valid and kind specific config must be valid
+	switch c.Kind {
+	case QueryKindSingleValue:
+		if err := c.validateSingle(); err != nil {
+			return fmt.Errorf("single value query config is invalid: %w", err)
+		}
+	case QueryKindBulk:
+		if err := c.validateBulk(); err != nil {
+			return fmt.Errorf("bulk query config is invalid: %w", err)
+		}
+	default:
+		return fmt.Errorf("invalid query kind: %w: %s", errInvalidVal, c.Kind)
+	}
+
 	return nil
 }
 
-func (c SingleValueQueryConfig) Validate() error {
-	err := c.BaseQueryConfig.Validate()
-	if err != nil {
-		return err
-	}
-
+func (c QueryConfig) validateSingle() error {
 	// The query must be a valid Template and only use the defined template fields
 	t, err := template.New("query").Parse(c.Query)
 	if err != nil {
@@ -117,14 +155,16 @@ func (c SingleValueQueryConfig) Validate() error {
 	return nil
 }
 
-func (c BulkQueryConfig) Validate() error {
-	err := c.BaseQueryConfig.Validate()
-	if err != nil {
-		return err
+func (c QueryConfig) validateBulk() error {
+	// MatchOn must be valid
+	switch c.MatchOn {
+	case QueryMatchOnEnvName, QueryMatchOnNamespace:
+	default:
+		return fmt.Errorf("invalid matchKey: %w: %s", errInvalidVal, c.MatchOn)
 	}
 
 	if c.MatchLabel == "" {
-		return fmt.Errorf("match_label must be set: %w", errInvalidVal)
+		return fmt.Errorf("matchLabel must be set: %w", errInvalidVal)
 	}
 
 	// The query must be a valid Template and not use any template fields

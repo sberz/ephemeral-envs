@@ -12,15 +12,15 @@ import (
 
 type serviceConfig struct {
 	Prometheus   prometheus.Config
-	StatusChecks map[string]prometheus.BaseQueryConfig
+	StatusChecks map[string]*prometheus.QueryConfig
 	configFile   string
 	MetricsPort  int
 	Port         int
 }
 
 type configFile struct {
-	StatusChecks map[string]prometheus.BaseQueryConfig `yaml:"statusChecks"`
-	Prometheus   prometheus.Config                     `yaml:"prometheus"`
+	StatusChecks map[string]*prometheus.QueryConfig `yaml:"statusChecks"`
+	Prometheus   prometheus.Config                  `yaml:"prometheus"`
 }
 
 var (
@@ -29,12 +29,14 @@ var (
 )
 
 func (c *configFile) validate() error {
+
 	for name, check := range c.StatusChecks {
 		// Name must be a valid label value
 		if !nameRegex.MatchString(name) {
 			return fmt.Errorf("statusChecks.%s: %w", name, errInvalidKey)
 		}
 
+		check.Name = name
 		checkErr := check.Validate()
 		if checkErr != nil {
 			return fmt.Errorf("statusChecks.%s: %w", name, checkErr)

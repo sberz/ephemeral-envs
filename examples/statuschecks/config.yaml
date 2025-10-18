@@ -13,15 +13,23 @@ prometheus:
 
 statusChecks:
   active:
+    kind: single
     # Query to determine if the status check passes. If the query returns a value > 0, the check is considered passing.
     # The query must return exactly one metric value.
     # Status check queries are templated with Go text/template. The following variables are available:
     # - .namespace: the namespace name
     # - .name: the environment name (from label envs.sberz.de/name)
-    query: count(kube_deployment_spec_replicas{namespace="{{.namespace}}"}) or vector(0)
+    query: sum(kube_deployment_spec_replicas{namespace="{{.namespace}}"}) or vector(0)
     interval: 30s
     timeout: 2s
   healthy:
-    query: min(kube_deployment_status_replicas_ready{namespace="{{.namespace}}"}) or vector(0)
+    kind: bulk
+    # Query to determine the health of environments in bulk. The query must return one metric value per environment.
+    # The query result is matched to environments based on the label specified in matchLabel.
+    # The matchOn field specifies which environment attribute to match against (name or namespace).
+    # The query must return at most one metric value per environment.
+    query: min by (namespace) (kube_deployment_status_replicas_ready{namespace=~"env-.+"})
+    matchOn: namespace
+    matchLabel: namespace
     interval: 30s
     timeout: 2s

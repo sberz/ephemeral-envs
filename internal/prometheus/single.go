@@ -15,16 +15,20 @@ import (
 type SingleValueQuery struct {
 	Prometheus *Prometheus
 	QueryTpl   *template.Template
-	cfg        SingleValueQueryConfig
+	cfg        QueryConfig
 }
 
 var _ EnvironmentQuerier = (*SingleValueQuery)(nil)
 
 // NewSingleValueQuery creates a Prometheus query that expects a single value result.
-func NewSingleValueQuery(ctx context.Context, prom Prometheus, cfg SingleValueQueryConfig) (*SingleValueQuery, error) {
+func NewSingleValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) (*SingleValueQuery, error) {
 	err := cfg.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	if cfg.Kind != QueryKindSingleValue {
+		return nil, fmt.Errorf("invalid query kind %s for single value query: %w", cfg.Kind, errInvalidVal)
 	}
 
 	t, err := template.New("query").Option("missingkey=error").Parse(cfg.Query)
@@ -50,8 +54,8 @@ func (q *SingleValueQuery) AddEnvironment(name string, namespace string) (QueryE
 	}, nil
 }
 
-func (q *SingleValueQuery) Config() BaseQueryConfig {
-	return q.cfg.BaseQueryConfig
+func (q *SingleValueQuery) Config() QueryConfig {
+	return q.cfg
 }
 
 func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string, namespace string) (model.Sample, error) {

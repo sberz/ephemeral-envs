@@ -154,7 +154,7 @@ func setupProbers(ctx context.Context, cfg *serviceConfig) (statusChecks map[str
 	}
 
 	for name, cfg := range cfg.StatusChecks {
-		prober, err := probe.NewPrometheusProber[bool](ctx, prometheus, cfg, probe.PromValToBool)
+		prober, err := probe.NewPrometheusProber(ctx, prometheus, *cfg, probe.PromValToBool)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Prometheus prober for check %q: %w", name, err)
 		}
