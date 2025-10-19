@@ -59,9 +59,9 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("can not load config: %w", err)
 	}
 
-	slog.DebugContext(ctx, "Starting autodiscovery service", "args", args)
+	slog.DebugContext(ctx, "starting autodiscovery service", "args", args)
 
-	slog.DebugContext(ctx, "Setting up Kubernetes client")
+	slog.DebugContext(ctx, "setting up Kubernetes client")
 	clientset, err := kube.GetClient()
 	if err != nil {
 		return fmt.Errorf("failed to get Kubernetes client: %w", err)
@@ -78,7 +78,7 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to set up probers: %w", err)
 	}
 
-	slog.DebugContext(ctx, "Watching namespace events")
+	slog.DebugContext(ctx, "watching namespace events")
 	controller := NewEventHandler(ctx, envStore, statusChecks)
 	err = kube.WatchNamespaceEvents(
 		ctx,
@@ -92,10 +92,10 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to watch namespace events: %w", err)
 	}
 
-	slog.InfoContext(ctx, "Initial sync complete, waiting for events", "env_count", envStore.GetEnvironmentCount(ctx))
+	slog.InfoContext(ctx, "initial sync complete, waiting for events", "env_count", envStore.GetEnvironmentCount(ctx))
 
 	// Start the HTTP server
-	slog.DebugContext(ctx, "Starting HTTP server", "port", cfg.Port)
+	slog.DebugContext(ctx, "starting HTTP server", "port", cfg.Port)
 
 	server := http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
@@ -112,23 +112,23 @@ func run(ctx context.Context, args []string) error {
 	}()
 
 	if cfg.MetricsPort != 0 {
-		slog.DebugContext(ctx, "Starting metrics server", "port", cfg.MetricsPort)
+		slog.DebugContext(ctx, "starting metrics server", "port", cfg.MetricsPort)
 
 		http.Handle("/metrics", promhttp.Handler())
 		go func() {
 			//nolint:gosec // G114 - not relevant for this internal only server
 			if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.MetricsPort), nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				slog.ErrorContext(ctx, "Metrics server failed", "error", err)
+				slog.ErrorContext(ctx, "metrics server failed", "error", err)
 				os.Exit(1)
 			}
 		}()
 	}
 
-	slog.InfoContext(ctx, "Autodiscovery service started", "address", server.Addr)
+	slog.InfoContext(ctx, "autodiscovery service started", "address", server.Addr)
 
 	// Wait for the server to shut down gracefully
 	<-ctx.Done()
-	slog.InfoContext(ctx, "Shutting down server gracefully")
+	slog.InfoContext(ctx, "shutting down server gracefully")
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 
@@ -147,7 +147,7 @@ func setupProbers(ctx context.Context, cfg *serviceConfig) (statusChecks map[str
 		return statusChecks, nil
 	}
 
-	slog.DebugContext(ctx, "Setting up Prometheus client", "url", cfg.Prometheus.Address)
+	slog.DebugContext(ctx, "setting up Prometheus client", "url", cfg.Prometheus.Address)
 	prometheus, err = promAPI.NewPrometheus(ctx, cfg.Prometheus)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Prometheus client: %w", err)

@@ -29,7 +29,7 @@ func NewBulkValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) (*
 		return nil, fmt.Errorf("%w: %s for bulk value query", ErrInvalidQueryKind, cfg.Kind)
 	}
 
-	slog.DebugContext(ctx, "Creating bulk value Prometheus query", "name", cfg.Name, "query_kind", cfg.Kind, "query", cfg.Query, "interval", cfg.Interval.String(), "timeout", cfg.Timeout.String(), "match_on", cfg.MatchOn, "match_label", cfg.MatchLabel)
+	slog.DebugContext(ctx, "creating bulk value Prometheus query", "name", cfg.Name, "query_kind", cfg.Kind, "query", cfg.Query, "interval", cfg.Interval.String(), "timeout", cfg.Timeout.String(), "match_on", cfg.MatchOn, "match_label", cfg.MatchLabel)
 
 	return &BulkValueQuery{
 		Prometheus: &prom,
@@ -83,7 +83,7 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 	q.valCache = make(map[string]model.Sample)
 
 	// Perform the bulk query
-	log.DebugContext(ctx, "Executing Prometheus query")
+	log.DebugContext(ctx, "executing Prometheus query")
 	res, warnings, err := q.Prometheus.apiClient.Query(
 		ctx, q.cfg.Query, time.Now(),
 		v1.WithTimeout(q.cfg.Timeout),
@@ -92,7 +92,7 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 		return model.ZeroSample, fmt.Errorf("query failed: %w", err)
 	}
 	if len(warnings) > 0 {
-		log.WarnContext(ctx, "Prometheus query succeeded with warnings", "warnings", warnings)
+		log.WarnContext(ctx, "prometheus query succeeded with warnings", "warnings", warnings)
 	}
 
 	samples, ok := res.(model.Vector)
@@ -100,17 +100,17 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 		return model.ZeroSample, fmt.Errorf("unexpected result type %T: %w", res, ErrResultNotParsable)
 	}
 	if len(samples) == 0 {
-		log.WarnContext(ctx, "Prometheus query returned no results")
+		log.WarnContext(ctx, "prometheus query returned no results")
 	}
 
-	log.DebugContext(ctx, "Prometheus query returned a result", "result", samples)
+	log.DebugContext(ctx, "prometheus query returned a result", "result", samples)
 
 	// Map the samples to the environment queries
 	for _, sample := range samples {
 		key := string(sample.Metric[model.LabelName(q.cfg.MatchLabel)])
 
 		if time.Since(samples[0].Timestamp.Time()).Abs() > sampleDriftAllowance {
-			log.WarnContext(ctx, "Prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
+			log.WarnContext(ctx, "prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
 		}
 
 		q.valCache[key] = *sample
@@ -121,7 +121,7 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 	if !ok {
 		// No result for this environment, don't treat as an error as the environment may legitimately have no data
 		// i.e: during creation or if the probe condition is not met
-		log.WarnContext(ctx, "No result for registered environment after bulk query", "match_key", match)
+		log.WarnContext(ctx, "no result for registered environment after bulk query", "match_key", match)
 		return model.Sample{Timestamp: model.Now()}, nil
 	}
 

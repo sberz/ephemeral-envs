@@ -36,7 +36,7 @@ func NewSingleValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) 
 		return nil, fmt.Errorf("failed to parse query template: %w", err)
 	}
 
-	slog.DebugContext(ctx, "Creating single value Prometheus query", "name", cfg.Name, "query_kind", cfg.Kind, "query", cfg.Query, "interval", cfg.Interval.String(), "timeout", cfg.Timeout.String())
+	slog.DebugContext(ctx, "creating single value Prometheus query", "name", cfg.Name, "query_kind", cfg.Kind, "query", cfg.Query, "interval", cfg.Interval.String(), "timeout", cfg.Timeout.String())
 
 	return &SingleValueQuery{
 		Prometheus: &prom,
@@ -72,7 +72,7 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 	query := sb.String()
 
 	log = log.With("query", query)
-	log.DebugContext(ctx, "Executing Prometheus query")
+	log.DebugContext(ctx, "executing Prometheus query")
 
 	res, warnings, err := q.Prometheus.apiClient.Query(
 		ctx, query, time.Now(),
@@ -84,7 +84,7 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 		return model.ZeroSample, fmt.Errorf("query failed: %w", err)
 	}
 	if len(warnings) > 0 {
-		log.WarnContext(ctx, "Prometheus query succeeded with warnings", "warnings", warnings)
+		log.WarnContext(ctx, "prometheus query succeeded with warnings", "warnings", warnings)
 	}
 
 	samples, ok := res.(model.Vector)
@@ -92,18 +92,18 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 		return model.ZeroSample, fmt.Errorf("unexpected result type %T: %w", res, ErrResultNotParsable)
 	}
 	if len(samples) == 0 {
-		log.WarnContext(ctx, "Prometheus query returned no results")
+		log.WarnContext(ctx, "prometheus query returned no results")
 		return model.ZeroSample, ErrResultNotFound
 	}
 	if len(samples) > 1 {
-		log.ErrorContext(ctx, "Prometheus query returned too many results", "num_results", len(samples), "results", samples)
+		log.ErrorContext(ctx, "prometheus query returned too many results", "num_results", len(samples), "results", samples)
 		return model.ZeroSample, ErrTooManyResults
 	}
 
-	log.DebugContext(ctx, "Prometheus query returned a result", "result", samples[0])
+	log.DebugContext(ctx, "prometheus query returned a result", "result", samples[0])
 
 	if time.Since(samples[0].Timestamp.Time()).Abs() > sampleDriftAllowance {
-		log.WarnContext(ctx, "Prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
+		log.WarnContext(ctx, "prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
 	}
 
 	return *samples[0], nil

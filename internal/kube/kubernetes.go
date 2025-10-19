@@ -64,7 +64,7 @@ func WatchNamespaceEvents(
 			if ns == nil {
 				return
 			}
-			slog.DebugContext(ctx, "Namespace added", "name", ns.Name, "labels", ns.Labels)
+			slog.DebugContext(ctx, "namespace added", "name", ns.Name, "labels", ns.Labels)
 
 			if onAdd != nil {
 				onAdd(ctx, ns)
@@ -81,7 +81,7 @@ func WatchNamespaceEvents(
 			if newNs == nil {
 				return
 			}
-			slog.DebugContext(ctx, "Namespace updated", "name", newNs.Name, "oldLabels", oldNs.Labels, "newLabels", newNs.Labels)
+			slog.DebugContext(ctx, "namespace updated", "name", newNs.Name, "oldLabels", oldNs.Labels, "newLabels", newNs.Labels)
 
 			if onUpdate != nil {
 				onUpdate(ctx, oldNs, newNs)
@@ -94,7 +94,7 @@ func WatchNamespaceEvents(
 			if ns == nil {
 				return
 			}
-			slog.DebugContext(ctx, "Namespace deleted", "name", ns.Name, "labels", ns.Labels)
+			slog.DebugContext(ctx, "namespace deleted", "name", ns.Name, "labels", ns.Labels)
 
 			if onDelete != nil {
 				onDelete(ctx, ns)
@@ -117,7 +117,7 @@ func WatchNamespaceEvents(
 func toNamespace(ctx context.Context, obj interface{}) *corev1.Namespace {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok || ns == nil {
-		slog.ErrorContext(ctx, "Received object is not a Namespace", "objectType", fmt.Sprintf("%T", obj))
+		slog.ErrorContext(ctx, "received object is not a Namespace", "objectType", fmt.Sprintf("%T", obj))
 		return nil
 	}
 	return ns
