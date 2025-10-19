@@ -73,9 +73,15 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 
 	match := q.matchKey(envName, namespace)
 
-	val, ok := q.valCache[match]
-	if ok && time.Since(q.lastQuery) < q.cfg.Interval {
-		return val, nil
+	if time.Since(q.lastQuery) < q.cfg.Interval {
+		val, ok := q.valCache[match]
+		if ok {
+			log.DebugContext(ctx, "using cached value for query", "match_key", match)
+			return val, nil
+		}
+
+		log.DebugContext(ctx, "cached value not found for query, but interval has not elapsed", "match_key", match)
+		return model.Sample{Timestamp: model.TimeFromUnixNano(q.lastQuery.UnixNano())}, nil
 	}
 
 	// Need to perform a new bulk query
@@ -117,7 +123,7 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 	}
 
 	q.lastQuery = time.Now()
-	val, ok = q.valCache[match]
+	val, ok := q.valCache[match]
 	if !ok {
 		// No result for this environment, don't treat as an error as the environment may legitimately have no data
 		// i.e: during creation or if the probe condition is not met
