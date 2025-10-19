@@ -19,5 +19,4 @@ type Prober[V Type] interface {
 type Probe[V Type] interface {
 	Value(ctx context.Context) (V, error)
 	LastUpdate() time.Time
-	Destroy(ctx context.Context) error
 }

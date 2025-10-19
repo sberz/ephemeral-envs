@@ -14,7 +14,6 @@ import (
 type BulkValueQuery struct {
 	lastQuery  time.Time
 	Prometheus *Prometheus
-	registered map[string]*environmentQuery
 	valCache   map[string]model.Sample
 	cfg        QueryConfig
 	mu         sync.Mutex
@@ -35,7 +34,6 @@ func NewBulkValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) (*
 	return &BulkValueQuery{
 		Prometheus: &prom,
 		cfg:        cfg,
-		registered: make(map[string]*environmentQuery),
 		valCache:   make(map[string]model.Sample),
 	}, nil
 }
@@ -55,20 +53,12 @@ func (q *BulkValueQuery) AddEnvironment(name string, namespace string) (QueryExe
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	match := q.matchKey(name, namespace)
+	return &environmentQuery{
+		query:     q,
+		envName:   name,
+		namespace: namespace,
+	}, nil
 
-	if _, ok := q.registered[match]; ok {
-		return nil, fmt.Errorf("%w: %s", ErrAlreadyRegistered, name)
-	}
-
-	q.registered[match] = &environmentQuery{
-		query:      q,
-		envName:    name,
-		namespace:  namespace,
-		registered: true,
-	}
-
-	return q.registered[match], nil
 }
 
 func (q *BulkValueQuery) Config() QueryConfig {
@@ -82,9 +72,6 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 	log := slog.With("name", q.cfg.Name, "query_kind", q.cfg.Kind, "env_name", envName, "env_namespace", namespace, "query", q.cfg.Query)
 
 	match := q.matchKey(envName, namespace)
-	if _, ok := q.registered[match]; !ok {
-		return model.ZeroSample, ErrNotRegistered
-	}
 
 	val, ok := q.valCache[match]
 	if ok && time.Since(q.lastQuery) < q.cfg.Interval {
@@ -122,11 +109,6 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 	for _, sample := range samples {
 		key := string(sample.Metric[model.LabelName(q.cfg.MatchLabel)])
 
-		if _, ok = q.registered[key]; !ok {
-			log.DebugContext(ctx, "Received result for unregistered environment", "match_key", key, "match_label", q.cfg.MatchLabel, "value", sample)
-			continue
-		}
-
 		if time.Since(samples[0].Timestamp.Time()).Abs() > sampleDriftAllowance {
 			log.WarnContext(ctx, "Prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
 		}
@@ -140,22 +122,8 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 		// No result for this environment, don't treat as an error as the environment may legitimately have no data
 		// i.e: during creation or if the probe condition is not met
 		log.WarnContext(ctx, "No result for registered environment after bulk query", "match_key", match)
-		return model.ZeroSample, nil
+		return model.Sample{Timestamp: model.Now()}, nil
 	}
 
 	return val, nil
-}
-
-func (q *BulkValueQuery) removeEnvironment(_ context.Context, name string, namespace string) error {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	match := q.matchKey(name, namespace)
-
-	if _, ok := q.registered[match]; !ok {
-		return fmt.Errorf("%w: %s", ErrNotRegistered, name)
-	}
-
-	delete(q.registered, match)
-	return nil
 }

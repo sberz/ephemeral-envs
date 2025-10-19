@@ -23,8 +23,3 @@ func (p StaticProbe[V]) LastUpdate() time.Time {
 	// Static probe never updates
 	return time.Time{}
 }
-
-func (p StaticProbe[V]) Destroy(_ context.Context) error {
-	// No resources to clean up
-	return nil
-}

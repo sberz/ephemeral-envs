@@ -22,8 +22,6 @@ const (
 var (
 	errInvalidVal        = fmt.Errorf("invalid value")
 	ErrInvalidQueryKind  = fmt.Errorf("invalid query kind")
-	ErrAlreadyRegistered = fmt.Errorf("environment already registered")
-	ErrNotRegistered     = fmt.Errorf("environment not registered")
 	ErrResultNotFound    = fmt.Errorf("result not found")
 	ErrTooManyResults    = fmt.Errorf("too many results")
 	ErrResultNotParsable = fmt.Errorf("result not parseable")
@@ -78,8 +76,6 @@ type EnvironmentQuerier interface {
 	// queryForEnvironment executes the query for the given environment, returning the raw Prometheus sample.
 	// The environment must have been previously registered via AddEnvironment.
 	queryForEnvironment(ctx context.Context, name string, namespace string) (model.Sample, error)
-	// removeEnvironment deregisters the environment.
-	removeEnvironment(ctx context.Context, name string, namespace string) error
 }
 
 // QueryExecutor is the interface for executing Prometheus queries and retrieving results.
@@ -93,8 +89,6 @@ type QueryExecutor interface {
 	Text(ctx context.Context) (string, error)
 	// LastUpdate returns the time of the last successful query
 	LastUpdate() time.Time
-	// Destroy deregisters the environment and cleans up any resources.
-	Destroy(ctx context.Context) error
 }
 
 type environmentQuery struct {
@@ -103,7 +97,6 @@ type environmentQuery struct {
 	query      EnvironmentQuerier
 	envName    string
 	namespace  string
-	registered bool
 	mu         sync.RWMutex
 }
 
@@ -220,10 +213,6 @@ func (q *environmentQuery) sample(ctx context.Context) (model.Sample, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	if !q.registered {
-		return model.ZeroSample, ErrNotRegistered
-	}
-
 	// If the last query was recent enough, return the cached value
 	if time.Since(q.lastUpdate) < q.query.Config().Interval {
 		return q.lastStored, nil
@@ -249,15 +238,4 @@ func (q *environmentQuery) LastUpdate() time.Time {
 	defer q.mu.RUnlock()
 
 	return q.lastUpdate
-}
-
-func (q *environmentQuery) Destroy(ctx context.Context) error {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	q.lastStored = model.ZeroSample
-	q.lastUpdate = time.Time{}
-	q.registered = false
-
-	return q.query.removeEnvironment(ctx, q.envName, q.namespace)
 }

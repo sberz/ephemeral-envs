@@ -47,10 +47,9 @@ func NewSingleValueQuery(ctx context.Context, prom Prometheus, cfg QueryConfig) 
 
 func (q *SingleValueQuery) AddEnvironment(name string, namespace string) (QueryExecutor, error) {
 	return &environmentQuery{
-		query:      q,
-		envName:    name,
-		namespace:  namespace,
-		registered: true,
+		query:     q,
+		envName:   name,
+		namespace: namespace,
 	}, nil
 }
 
@@ -108,9 +107,4 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 	}
 
 	return *samples[0], nil
-}
-
-func (q *SingleValueQuery) removeEnvironment(_ context.Context, _ string, _ string) error {
-	// No-op for single value queries
-	return nil
 }

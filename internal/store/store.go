@@ -63,6 +63,8 @@ func (s *Store) addEnvironment(ctx context.Context, env Environment) error {
 		}
 	}
 
+	slog.DebugContext(ctx, "Adding environment to store", "name", env.Name, "namespace", env.Namespace)
+
 	s.env[env.Name] = env
 	envInfo.WithLabelValues(env.Name, env.Namespace).Set(1)
 
@@ -77,14 +79,7 @@ func (s *Store) deleteEnvironment(ctx context.Context, name string) error {
 		return fmt.Errorf("%w: %s", ErrEnvironmentNotFound, name)
 	}
 
-	for k, v := range env.StatusChecks {
-		if v != nil {
-			err := v.Destroy(ctx)
-			if err != nil {
-				slog.ErrorContext(ctx, "failed to destroy status check", "check", k, "error", err)
-			}
-		}
-	}
+	slog.DebugContext(ctx, "Deleting environment from store", "name", name, "namespace", env.Namespace)
 
 	delete(s.env, name)
 	// Clean up the metric

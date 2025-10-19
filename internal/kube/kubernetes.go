@@ -55,7 +55,7 @@ func WatchNamespaceEvents(
 		lo.LabelSelector = labelSelector
 	})
 
-	factory := informers.NewSharedInformerFactoryWithOptions(clientset, time.Minute*10, opts)
+	factory := informers.NewSharedInformerFactoryWithOptions(clientset, 10*time.Minute, opts)
 	nsInformer := factory.Core().V1().Namespaces().Informer()
 
 	_, err := nsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
