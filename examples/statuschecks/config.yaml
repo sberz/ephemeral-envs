@@ -1,7 +1,6 @@
 # Example configuration file for probes
 prometheus:
-  address: http://localhost:9090
-
+  address: http://prometheus.env-test.localhost:3000
   # Optional HTTP headers to include in requests to Prometheus API
   headers:
     # e.g. Mimir Tenant header
