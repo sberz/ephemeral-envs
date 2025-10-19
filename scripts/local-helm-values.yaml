@@ -1,0 +1,62 @@
+replicaCount: 3
+image:
+  tag: local
+logLevel: INFO
+serviceMonitor:
+  enabled: true
+  honorLabels: false
+  interval: 15s
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+  hosts:
+    - host: ephemeral-envs.env-test.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 80%
+topologySpreadConstraints:
+  - topologyKey: "topology.kubernetes.io/zone"
+    maxSkew: 1
+    whenUnsatisfiable: ScheduleAnyway
+  - topologyKey: "kubernetes.io/hostname"
+    maxSkew: 1
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: ephemeral-envs
+config:
+  prometheus:
+    address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+  statusChecks:
+    active:
+      kind: single
+      query: sum(kube_deployment_spec_replicas{namespace="{{.namespace}}"}) or vector(0)
+      interval: 30s
+      timeout: 2s
+    healthy:
+      kind: bulk
+      query: min by (namespace) (kube_deployment_status_replicas_ready{namespace=~"env-.+"})
+      matchOn: namespace
+      matchLabel: namespace
+      interval: 30s
+      timeout: 2s
+    selfdiscovery_name:
+      kind: bulk
+      query: sum by (name) (env_autodiscovery_environment_info{})
+      matchOn: name
+      matchLabel: name
+      interval: 30s
+      timeout: 5s
+    selfdiscovery_namespace:
+      kind: bulk
+      query: sum by (exported_namespace) (env_autodiscovery_environment_info{})
+      matchOn: namespace
+      matchLabel: exported_namespace
+      interval: 30s
+      timeout: 5s
+

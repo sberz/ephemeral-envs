@@ -1,13 +1,3 @@
-KIND_CLUSTER_NAME ?= test-ephemeral-envs
-KIND_KUBECONFIG ?= $(abspath ./kind-kubeconfig.yaml)
-
-IMAGE_NAME ?= ghcr.io/sberz/ephemeral-envs
-IMAGE_TAG ?= local
-
-export KIND_EXPERIMENTAL_PROVIDER ?= podman
-export KUBECONFIG=$(KIND_KUBECONFIG)
-
-
 ## help: print this help message
 .PHONY: help
 help:
@@ -19,11 +9,6 @@ help:
 build:
 	go build -o bin/autodiscovery ./cmd/autodiscovery
 
-## build-image: build the container image
-.PHONY: build-image
-build-image:
-	podman build -t $(IMAGE_NAME):$(IMAGE_TAG) .
-
 ## lint: lint the codebase
 .PHONY: lint
 lint:
@@ -33,46 +18,30 @@ lint:
 ## testing/setup/cluster: setup kind cluster for testing
 .PHONY: testing/setup/cluster
 testing/setup/cluster:
-	@echo "Setting up kind cluster for testing..."; \
-	if kind get clusters | grep -q "^$(KIND_CLUSTER_NAME)$$"; then \
-		echo "Cluster $(KIND_CLUSTER_NAME) already exists. Skipping creation."; \
-		exit 0; \
-	fi; \
-	kind create cluster --name test-ephemeral-envs; \
-	echo "Cluster created. Kubeconfig is available at $(KIND_KUBECONFIG)."
+	@./scripts/test-cluster.sh setup-minimal
 
 ## testing/setup: setup testing environment
 .PHONY: testing/setup
-testing/setup: testing/setup/cluster
-	@echo "Installing additional components into the cluster..."
-	@echo "Installing kube-prometheus-stack. This may take a while..."
-	helm upgrade --install kube-prometheus-stack oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
-		--namespace monitoring --create-namespace --wait \
-		--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
-
-	@echo "Setup complete."
-
-
-## testing/get-env: export environment variables for testing
-.PHONY: testing/get-env
-testing/get-env:
-	@echo "Exporting environment variables for testing..." >&2
-	@echo "# HINT: Runt this command to set the environment variables in your shell:"
-	@echo "# source <(make testing/get-env)\n"
-
-	@echo "export KUBECONFIG=$(KIND_KUBECONFIG)"
+testing/setup:
+	@./scripts/test-cluster.sh setup-cluster
 
 ## testing/load-image: Build and load Docker image into kind cluster
 .PHONY: testing/load-image
-testing/load-image: build-image
-	@echo "Loading image $(IMAGE_NAME):$(IMAGE_TAG) into kind cluster..."
-	kind load docker-image $(IMAGE_NAME):$(IMAGE_TAG) --name $(KIND_CLUSTER_NAME)
+testing/load-image:
+	@./scripts/test-cluster.sh load-image
+
+## testing/install-helm: Install Helm chart into kind cluster
+.PHONY: testing/install-helm
+testing/install-helm:
+	@./scripts/test-cluster.sh install-helm
+
+## testing/examples: Apply example manifests for testing
+.PHONY: testing/examples
+testing/examples:
+	@./scripts/test-cluster.sh examples
 
 ## testing/teardown: teardown testing environment
 .PHONY: testing/teardown
 testing/teardown:
-	@echo "Tearing down testing environment..."
-	kind delete cluster --name test-ephemeral-envs
-	@echo "Cluster deleted."
-
+	@./scripts/test-cluster.sh teardown
 

@@ -55,7 +55,7 @@ Add annotations to provide additional information about the environment:
 To try it out, apply the manifest in the `examples/basic` directory:
 
 ```bash
-kubectl apply -f examples/basic
+kubectl apply -f examples/basic/manifests
 ```
 
 This will add two environments: `test` and `Test-Env-2.0`.
@@ -138,14 +138,14 @@ To run the service locally for development, you need a Kubernetes cluster (e.g. 
 There are a few Makefile targets to help with development. To get started quickly, you can use:
 
 ```bash
-# Creates a local kubernes cluster using kind and podman
+# Creates a local kubernetes cluster using kind and podman
 make testing/setup
 
 # Sets the kubeconfig to the kind cluster. This is needed for the service to access the cluster.
 export KUBECONFIG="$(realpath ./kind-kubeconfig.yaml)"
 
 # Apply the example manifests to the cluster
-kubectl apply -f examples/basic
+kubectl apply -f examples/basic/manifests
 
 # Run the service locally
 go run ./cmd/autodiscovery --log-level debug
@@ -155,15 +155,8 @@ make testing/teardown
 ```
 
 To run the helm chart with the service in the cluster, you can use:
-
 ```bash
-# Build a container image and load it into the kind cluster as `ghcr.io/sberz/ephemeral-envs:local`
-make testing/load-image
-
-# Install the helm chart with the local image
-helm install ephemeral-envs charts/ephemeral-envs \
-	--wait \
-	--set image.tag=local \
-	--set logLevel=debug \
-	--set replicaCount=2
+make testing/install-helm
 ```
+
+This will build the container image as `ghcr.io/sberz/ephemeral-envs:local`, load it into the kind cluster, and install the helm chart with the local image.
