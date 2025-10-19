@@ -1,6 +1,7 @@
 replicaCount: 3
 image:
   tag: local
+  pullPolicy: Never
 logLevel: INFO
 serviceMonitor:
   enabled: true

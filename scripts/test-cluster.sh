@@ -129,6 +129,7 @@ load_image() {
 	log_info "Building container image..."
 	podman build -t "${IMAGE_NAME}:${IMAGE_TAG}" .
 	log_info "Container image built: ${IMAGE_NAME}:${IMAGE_TAG}"
+	IMAGE_DIGEST=$(podman image inspect --format '{{.Digest}}' "${IMAGE_NAME}:${IMAGE_TAG}")
 
 	log_info "Loading image into kind cluster ${KIND_CLUSTER_NAME}..."
 	kind load docker-image "${IMAGE_NAME}:${IMAGE_TAG}" --name "${KIND_CLUSTER_NAME}"
@@ -138,8 +139,12 @@ load_image() {
 install_helm() {
 	log_info "Installing Helm chart into kind cluster..."
 
+	# Install the Helm chart with the built image. Annotate pods with image digest
+	# to enforce a restart if the image changes. Loading the image with digest and
+	# using the imageDigest did not work as expected.
 	helm upgrade --install ephemeral-envs ./charts/ephemeral-envs \
-		--wait --values ./scripts/local-helm-values.yaml
+		--wait --values ./scripts/local-helm-values.yaml \
+		--set podAnnotations.image-digest="${IMAGE_DIGEST}"
 
 	log_info "Helm chart installed."
 }
