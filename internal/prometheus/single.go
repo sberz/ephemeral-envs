@@ -58,6 +58,12 @@ func (q *SingleValueQuery) Config() QueryConfig {
 }
 
 func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string, namespace string) (model.Sample, error) {
+	start := time.Now()
+	queryStatus := "failed"
+	defer func() {
+		promQueryDuration.WithLabelValues(q.cfg.Name, string(q.cfg.Kind), queryStatus).Observe(time.Since(start).Seconds())
+	}()
+
 	log := slog.With("name", q.cfg.Name, "query_kind", q.cfg.Kind, "env_name", name, "env_namespace", namespace)
 	tplData := map[string]string{
 		"name":      name,
@@ -106,5 +112,6 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 		log.WarnContext(ctx, "prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
 	}
 
+	queryStatus = "success"
 	return *samples[0], nil
 }

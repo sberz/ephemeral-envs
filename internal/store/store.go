@@ -21,7 +21,7 @@ var (
 )
 
 var envInfo = promauto.NewGaugeVec(prometheus.GaugeOpts{
-	Name: "env_autodiscovery_environment_info",
+	Name: "ephemeralenv_environment_info",
 	Help: "Information about the discovered environments",
 }, []string{"name", "namespace"})
 

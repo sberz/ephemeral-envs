@@ -30,7 +30,7 @@ var logLevel = &slog.LevelVar{}
 
 var (
 	envTotalOpt = prometheus.GaugeOpts{
-		Name: "env_autodiscovery_environments_total",
+		Name: "ephemeralenv_environments",
 		Help: "Total number of discovered environments",
 	}
 )

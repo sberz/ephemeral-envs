@@ -48,14 +48,14 @@ config:
       timeout: 2s
     selfdiscovery_name:
       kind: bulk
-      query: sum by (name) (env_autodiscovery_environment_info{})
+      query: sum by (name) (ephemeralenv_environment_info{})
       matchOn: name
       matchLabel: name
       interval: 30s
       timeout: 5s
     selfdiscovery_namespace:
       kind: bulk
-      query: sum by (exported_namespace) (env_autodiscovery_environment_info{})
+      query: sum by (exported_namespace) (ephemeralenv_environment_info{})
       matchOn: namespace
       matchLabel: exported_namespace
       interval: 30s

@@ -99,6 +99,8 @@ install_prometheus() {
 			prometheus:
 			  prometheusSpec:
 			    serviceMonitorSelectorNilUsesHelmValues: false
+			    enableFeatures:
+			      - native-histograms
 			  ingress:
 			    enabled: true
 			    ingressClassName: nginx

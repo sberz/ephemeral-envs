@@ -14,7 +14,7 @@ import (
 
 var (
 	eventsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "env_autodiscovery_events_processed_total",
+		Name: "ephemeralenv_events_processed_total",
 		Help: "Total number of processed Kubernetes events",
 	}, []string{"event_type", "status"})
 )

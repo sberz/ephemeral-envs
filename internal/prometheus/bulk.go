@@ -69,11 +69,18 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
+	start := time.Now()
+	queryStatus := "failed"
+	defer func() {
+		promQueryDuration.WithLabelValues(q.cfg.Name, string(q.cfg.Kind), queryStatus).Observe(time.Since(start).Seconds())
+	}()
+
 	log := slog.With("name", q.cfg.Name, "query_kind", q.cfg.Kind, "env_name", envName, "env_namespace", namespace, "query", q.cfg.Query)
 
 	match := q.matchKey(envName, namespace)
 
 	if time.Since(q.lastQuery) < q.cfg.Interval {
+		queryStatus = "cached"
 		val, ok := q.valCache[match]
 		if ok {
 			log.DebugContext(ctx, "using cached value for query", "match_key", match)
@@ -121,8 +128,9 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 
 		q.valCache[key] = *sample
 	}
-
 	q.lastQuery = time.Now()
+	queryStatus = "success"
+
 	val, ok := q.valCache[match]
 	if !ok {
 		// No result for this environment, don't treat as an error as the environment may legitimately have no data

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 )
 
@@ -25,6 +27,20 @@ var (
 	ErrResultNotFound    = fmt.Errorf("result not found")
 	ErrTooManyResults    = fmt.Errorf("too many results")
 	ErrResultNotParsable = fmt.Errorf("result not parseable")
+)
+
+var (
+	promQueryDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "ephemeralenv_prometheus_query_duration_seconds",
+		Help: "Duration of Prometheus queries",
+
+		NativeHistogramBucketFactor: 1.1,
+	}, []string{"query_name", "query_kind", "status"})
+
+	promQueryCache = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "ephemeralenv_prometheus_query_cache_hits_total",
+		Help: "Total number of Prometheus query cache hits",
+	}, []string{"query_name", "query_kind", "cache"})
 )
 
 type QueryKind string
@@ -213,12 +229,17 @@ func (q *environmentQuery) sample(ctx context.Context) (model.Sample, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
+	cfg := q.query.Config()
+
 	// If the last query was recent enough, return the cached value
-	if time.Since(q.lastUpdate) < q.query.Config().Interval {
+	if time.Since(q.lastUpdate) < cfg.Interval {
+		promQueryCache.WithLabelValues(cfg.Name, string(cfg.Kind), "hit").Inc()
+
 		return q.lastStored, nil
 	}
 
 	// Need to perform a new query
+	promQueryCache.WithLabelValues(cfg.Name, string(cfg.Kind), "miss").Inc()
 
 	var sample model.Sample
 	sample, err := q.query.queryForEnvironment(ctx, q.envName, q.namespace)
