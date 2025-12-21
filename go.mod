@@ -3,12 +3,12 @@ module github.com/sberz/ephemeral-envs
 go 1.24.3
 
 require (
-	github.com/goccy/go-yaml v1.19.0
+	github.com/goccy/go-yaml v1.19.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common v0.67.4
-	k8s.io/api v0.34.3
-	k8s.io/apimachinery v0.34.3
-	k8s.io/client-go v0.34.3
+	k8s.io/api v0.35.0
+	k8s.io/apimachinery v0.35.0
+	k8s.io/client-go v0.35.0
 )
 
 require (
