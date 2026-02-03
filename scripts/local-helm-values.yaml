@@ -8,14 +8,21 @@ serviceMonitor:
   honorLabels: false
   interval: 15s
 ingress:
-  enabled: true
-  className: nginx
+  enabled: false
+  className: traefik
   annotations:
   hosts:
     - host: ephemeral-envs.env-test.localhost
       paths:
         - path: /
           pathType: Prefix
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - ephemeral-envs.env-test.localhost
 
 podDisruptionBudget:
   enabled: true
@@ -60,4 +67,3 @@ config:
       matchLabel: exported_namespace
       interval: 30s
       timeout: 5s
-

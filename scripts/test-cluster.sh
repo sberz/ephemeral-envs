@@ -77,6 +77,43 @@ teardown_cluster() {
 	log_info "Cluster ${KIND_CLUSTER_NAME} has been deleted."
 }
 
+install_gateway() {
+	log_info "Installing Gateway API CRDs..."
+
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml
+
+	log_info "Gateway API CRDs installed."
+	log_info "Installing Traefik Gateway Controller..."
+
+	helm upgrade --install traefik \
+		traefik --repo https://helm.traefik.io/traefik \
+		--namespace traefik --create-namespace --wait \
+		--values=- <<-EOF
+			ingressRoute:
+			  dashboard:
+			    enabled: true
+			    matchRule: Host("traefik.env-test.localhost")
+			    entryPoints:
+			      - web
+			providers:
+			  kubernetesGateway:
+			    enabled: true
+			gateway:
+			  listeners:
+			    web:
+			      namespacePolicy:
+			        from: All
+			ports:
+			  web:
+			    nodePort: 31080
+			service:
+			  type: NodePort
+			EOF
+
+	log_info "Traefik Gateway Controller installed."
+	log_info "Traefik Dashboard available at http://traefik.env-test.localhost:${INGRESS_PORT}"
+}
+
 install_ingress_controller() {
 	log_info "Installing NGINX Ingress Controller..."
 
@@ -101,20 +138,32 @@ install_prometheus() {
 			    serviceMonitorSelectorNilUsesHelmValues: false
 			    enableFeatures:
 			      - native-histograms
-			  ingress:
-			    enabled: true
-			    ingressClassName: nginx
-			    hosts:
-			      - prometheus.env-test.localhost
+			  route:
+			    main:
+			      enabled: true
+			      parentRefs:
+			        - name: traefik-gateway
+			          namespace: traefik
+			      hostnames:
+			        - prometheus.env-test.localhost
 			grafana:
-			  ingress:
-			    enabled: true
-			    ingressClassName: nginx
-			    hosts:
-			      - grafana.env-test.localhost
+			  route:
+			    main:
+			      enabled: true
+			      parentRefs:
+			        - name: traefik-gateway
+			          namespace: traefik
+			      hostnames:
+			        - grafana.env-test.localhost
 			EOF
 
 	log_info "Prometheus installed."
+	log_info "Prometheus available at http://prometheus.env-test.localhost:${INGRESS_PORT}"
+	log_info "Grafana available at http://grafana.env-test.localhost:${INGRESS_PORT}"
+
+	local admin_password
+	admin_password=$(kubectl get secret --namespace monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode)
+	log_info "Default Grafana credentials: admin / $admin_password"
 }
 
 examples_apply() {
@@ -149,6 +198,7 @@ install_helm() {
 		--set podAnnotations.image-digest="${IMAGE_DIGEST}"
 
 	log_info "Helm chart installed."
+	log_info "Ephemeral Envs available at http://ephemeral-envs.env-test.localhost:${INGRESS_PORT}/v1/environment"
 }
 
 check_dependencies
@@ -170,7 +220,7 @@ case $cmd in
 		;;
 	setup-cluster)
 		check_cluster_exists || setup_cluster
-		install_ingress_controller
+		install_gateway
 		install_prometheus
 		;;
 	setup-minimal)
