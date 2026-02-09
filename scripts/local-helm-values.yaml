@@ -67,3 +67,29 @@ config:
       matchLabel: exported_namespace
       interval: 30s
       timeout: 5s
+  metadata:
+    latestConfigMap:
+      type: string
+      kind: bulk
+      query: topk(1,max(kube_configmap_created{}) by (namespace,configmap)) by (namespace)
+      matchOn: namespace
+      matchLabel: namespace
+      extractLabel: configmap
+      interval: 1m
+      timeout: 5s
+    configCreated:
+      type: timestamp
+      kind: bulk
+      query: topk(1,max(kube_configmap_created{}) by (namespace,configmap)) by (namespace)
+      matchOn: namespace
+      matchLabel: namespace
+      interval: 1m
+      timeout: 5s
+    pods:
+      type: number
+      kind: bulk
+      query: count(kube_pod_info{namespace=~"env-.+"}) by (namespace)
+      matchOn: namespace
+      matchLabel: namespace
+      interval: 1m
+      timeout: 5s

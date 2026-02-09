@@ -32,3 +32,35 @@ statusChecks:
     matchLabel: namespace
     interval: 30s
     timeout: 2s
+
+metadata:
+  latestConfigMap:
+    type: string
+    kind: bulk
+    # Find the latest created configmap.
+    query: topk(1,max(kube_configmap_created{}) by (namespace,configmap)) by (namespace)
+    matchOn: namespace
+    matchLabel: namespace
+    # ExtractLabel specifies a label key to extract as value. Only for type string.
+    extractLabel: configmap
+    interval: 1m
+    timeout: 5s
+  configCreated:
+    # Metadata of type timestamp returns a time.Time value. The value is parsed from the query result as a Unix timestamp.
+    type: timestamp
+    kind: bulk
+    # Find the creation time of the latest created configmap.
+    query: topk(1,max(kube_configmap_created{}) by (namespace,configmap)) by (namespace)
+    matchOn: namespace
+    matchLabel: namespace
+    interval: 1m
+    timeout: 5s
+  pods:
+    type: number
+    kind: bulk
+    # Count the number of pods in each environment.
+    query: count(kube_pod_info{namespace=~"env-.+"}) by (namespace)
+    matchOn: namespace
+    matchLabel: namespace
+    interval: 1m
+    timeout: 5s

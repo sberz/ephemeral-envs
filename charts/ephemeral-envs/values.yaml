@@ -40,6 +40,16 @@ config:
     #   query: min(kube_deployment_status_replicas_ready{namespace="{{.namespace}}"}) or vector(0)
     #   interval: 30s
     #   timeout: 2s
+  metadata: {}
+    # owner:
+    #   type: string
+    #   kind: bulk
+    #   query: sum by (namespace, owner) (ephemeralenv_environment_info{namespace=~"env-.+"})
+    #   matchOn: namespace
+    #   matchLabel: namespace
+    #   extractLabel: owner
+    #   interval: 5m
+    #   timeout: 5s
 
 # name of an existing ConfigMap containing the configuration file
 existingConfigmap: ""

@@ -14,8 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sberz/ephemeral-envs/internal/kube"
-	"github.com/sberz/ephemeral-envs/internal/probe"
-	promAPI "github.com/sberz/ephemeral-envs/internal/prometheus"
 	"github.com/sberz/ephemeral-envs/internal/store"
 )
 
@@ -73,13 +71,13 @@ func run(ctx context.Context, args []string) error {
 		return float64(envStore.GetEnvironmentCount(ctx))
 	})
 
-	statusChecks, err := setupProbers(ctx, cfg)
+	statusChecks, metadataProbers, err := setupProbers(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to set up probers: %w", err)
 	}
 
 	slog.DebugContext(ctx, "watching namespace events")
-	controller := NewEventHandler(ctx, envStore, statusChecks)
+	controller := NewEventHandler(ctx, envStore, statusChecks, metadataProbers)
 	err = kube.WatchNamespaceEvents(
 		ctx,
 		clientset,
@@ -137,29 +135,4 @@ func run(ctx context.Context, args []string) error {
 	}
 
 	return nil
-}
-
-func setupProbers(ctx context.Context, cfg *serviceConfig) (statusChecks map[string]probe.Prober[bool], err error) {
-	statusChecks = make(map[string]probe.Prober[bool])
-	var prometheus *promAPI.Prometheus
-
-	if len(cfg.Prometheus.Address) == 0 {
-		return statusChecks, nil
-	}
-
-	slog.DebugContext(ctx, "setting up Prometheus client", "url", cfg.Prometheus.Address)
-	prometheus, err = promAPI.NewPrometheus(ctx, cfg.Prometheus)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Prometheus client: %w", err)
-	}
-
-	for name, cfg := range cfg.StatusChecks {
-		prober, err := probe.NewPrometheusProber(ctx, prometheus, *cfg, probe.PromValToBool)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Prometheus prober for check %q: %w", name, err)
-		}
-		statusChecks[name] = prober
-	}
-
-	return statusChecks, nil
 }

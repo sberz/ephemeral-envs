@@ -6,7 +6,7 @@ import (
 )
 
 type Type interface {
-	~bool | ~float64 | ~string
+	~bool | ~float64 | ~string | time.Time
 }
 
 type Prober[V Type] interface {

@@ -20,14 +20,16 @@ var (
 )
 
 type EventHandler struct {
-	s      *store.Store
-	checks map[string]probe.Prober[bool]
+	s        *store.Store
+	checks   map[string]probe.Prober[bool]
+	metadata map[string]probe.MetadataProber
 }
 
-func NewEventHandler(_ context.Context, store *store.Store, checks map[string]probe.Prober[bool]) *EventHandler {
+func NewEventHandler(_ context.Context, store *store.Store, checks map[string]probe.Prober[bool], metadata map[string]probe.MetadataProber) *EventHandler {
 	return &EventHandler{
-		s:      store,
-		checks: checks,
+		s:        store,
+		checks:   checks,
+		metadata: metadata,
 	}
 }
 
@@ -36,6 +38,7 @@ func (c *EventHandler) HandleNamespaceAdd(ctx context.Context, ns *corev1.Namesp
 
 	urls := c.buildURLMap(ctx, ns)
 	checks := c.buildStatusChecks(ctx, name, ns)
+	metadata := c.buildMetadataProbes(ctx, name, ns)
 
 	err := c.s.AddEnvironment(ctx, store.Environment{
 		Name:         name,
@@ -43,6 +46,7 @@ func (c *EventHandler) HandleNamespaceAdd(ctx context.Context, ns *corev1.Namesp
 		Namespace:    ns.Name,
 		URL:          urls,
 		StatusChecks: checks,
+		MetaProbes:   metadata,
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to add environment", "name", name, "error", err)
@@ -59,6 +63,7 @@ func (c *EventHandler) HandleNamespaceUpdate(ctx context.Context, oldNs, newNs *
 
 	urls := c.buildURLMap(ctx, newNs)
 	checks := c.buildStatusChecks(ctx, newName, newNs)
+	metadata := c.buildMetadataProbes(ctx, newName, newNs)
 
 	err := c.s.UpdateEnvironment(ctx, oldName, store.Environment{
 		Name:         newName,
@@ -66,6 +71,7 @@ func (c *EventHandler) HandleNamespaceUpdate(ctx context.Context, oldNs, newNs *
 		Namespace:    newNs.Name,
 		URL:          urls,
 		StatusChecks: checks,
+		MetaProbes:   metadata,
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to update environment", "old_name", oldName, "new_name", newName, "error", err)
@@ -132,4 +138,34 @@ func (c *EventHandler) buildStatusChecks(ctx context.Context, envName string, ns
 		checks[check] = probe
 	}
 	return checks
+}
+
+func (c *EventHandler) buildMetadataProbes(ctx context.Context, envName string, ns *corev1.Namespace) map[string]probe.MetadataProbe {
+	probes := make(map[string]probe.MetadataProbe)
+
+	// for k, v := range ns.Annotations {
+	// 	if !strings.HasPrefix(k, AnnotationEnvMetadataPrefix) {
+	// 		continue
+	// 	}
+
+	// 	slog.DebugContext(ctx, "found environment metadata annotation", "key", k, "value", v)
+
+	// 	metaName := strings.TrimPrefix(k, AnnotationEnvMetadataPrefix)
+	// 	probes[metaName] = probe.NewStaticMetadataProbe(v)
+	// }
+
+	for meta, err := range c.metadata {
+		if _, exists := probes[meta]; exists {
+			// Already defined via annotation
+			continue
+		}
+
+		probe, err := err.AddEnvironment(envName, ns.Name)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to add environment to metadata prober", "metadata", meta, "env_name", envName, "error", err)
+			continue
+		}
+		probes[meta] = probe
+	}
+	return probes
 }

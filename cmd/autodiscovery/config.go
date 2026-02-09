@@ -7,12 +7,14 @@ import (
 	"regexp"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sberz/ephemeral-envs/internal/probe"
 	"github.com/sberz/ephemeral-envs/internal/prometheus"
 )
 
 type serviceConfig struct {
 	Prometheus   prometheus.Config
 	StatusChecks map[string]*prometheus.QueryConfig
+	Metadata     map[string]*MetadataConfig
 	configFile   string
 	MetricsPort  int
 	Port         int
@@ -20,6 +22,7 @@ type serviceConfig struct {
 
 type configFile struct {
 	StatusChecks map[string]*prometheus.QueryConfig `yaml:"statusChecks"`
+	Metadata     map[string]*MetadataConfig         `yaml:"metadata"`
 	Prometheus   prometheus.Config                  `yaml:"prometheus"`
 }
 
@@ -27,6 +30,25 @@ var (
 	nameRegex     = regexp.MustCompile(`^[-a-zA-Z0-9_]+$`)
 	errInvalidKey = fmt.Errorf("key must match regex %s", nameRegex.String())
 )
+
+type MetadataConfig struct {
+	Type                   probe.MetadataType `yaml:"type"`
+	prometheus.QueryConfig `yaml:",inline"`
+}
+
+func (c *MetadataConfig) Validate() error {
+	err := c.Type.Validate()
+	if err != nil {
+		return fmt.Errorf("invalid metadata type: %w", err)
+	}
+
+	err = c.QueryConfig.Validate()
+	if err != nil {
+		return fmt.Errorf("invalid query config: %w", err)
+	}
+
+	return nil
+}
 
 func (c *configFile) validate() error {
 
@@ -40,6 +62,17 @@ func (c *configFile) validate() error {
 		checkErr := check.Validate()
 		if checkErr != nil {
 			return fmt.Errorf("statusChecks.%s: %w", name, checkErr)
+		}
+	}
+
+	for name, metadata := range c.Metadata {
+		if !nameRegex.MatchString(name) {
+			return fmt.Errorf("metadata.%s: %w", name, errInvalidKey)
+		}
+
+		metadata.Name = name
+		if err := metadata.Validate(); err != nil {
+			return fmt.Errorf("metadata.%s: %w", name, err)
 		}
 	}
 	return nil
@@ -86,6 +119,7 @@ func parseConfig(args []string) (*serviceConfig, error) {
 
 		cfg.Prometheus = cfgFile.Prometheus
 		cfg.StatusChecks = cfgFile.StatusChecks
+		cfg.Metadata = cfgFile.Metadata
 	}
 
 	return cfg, nil

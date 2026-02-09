@@ -24,7 +24,7 @@ This service makes a few assumptions about how ephemeral environments are define
 - Each ephemeral environment is represented by a Kubernetes namespace.
 - Each namespace has a label `envs.sberz.de/name` with the name of the environment.
 - Environment names must be unique across all namespaces.
-- Additional information about the environment can be provided via annotations on the namespace or dynamic providers (coming soon).
+- Additional information about the environment can be provided via annotations on the namespace or dynamic metadata queries.
 
 ### Accessing the Service
 
@@ -49,6 +49,51 @@ To mark a namespace as an ephemeral environment, add the label `envs.sberz.de/na
 Add annotations to provide additional information about the environment:
 
 - Annotation `url.envs.sberz.de/<endpoint-name>: <url>`: Define URLs for different endpoints (e.g., API, dashboard, etc.).
+
+#### Status Checks
+You can define status checks for each environment using Prometheus queries. Status checks are defined in the service configuration and can be used to determine the health or activity of an environment. Each status check has a name, a Prometheus query, and configuration for matching the results to environments.
+For example, to define status checks, you can use the following configuration:
+
+```yaml
+prometheus:
+	address: http://prometheus.example.local:9090
+statusChecks:
+	healthy:
+		kind: bulk
+		query: min by (namespace) (kube_deployment_status_replicas_ready{namespace=~"env-.+"})
+		matchOn: namespace
+		matchLabel: namespace
+		interval: 30s
+		timeout: 2s
+```
+
+Alternatively, you can define a static status check using annotations on the namespace. This is useful to create dummy environments or to override the dynamic status check results:
+```yaml
+metadata:
+  annotations:
+	status.envs.sberz.de/active: "true"
+```
+
+#### Dynamic Metadata
+
+In addition to annotations you can expose metadata that is resolved dynamically via Prometheus. Each metadata entry defines the query configuration and the expected data type (`string`, `bool`, `number`, or `timestamp`). String metadata can optionally specify `extractLabel` to pull the text value from a label on the matching sample.
+
+```yaml
+prometheus:
+	address: http://prometheus.example.local:9090
+metadata:
+	owner:
+		type: string
+		kind: bulk
+		query: sum by (namespace, owner) (kube_namespace_labels{})
+		matchOn: namespace
+		matchLabel: namespace
+		extractLabel: owner
+		interval: 5m
+		timeout: 5s
+```
+
+Metadata is included when calling `GET /v1/environment/{name}` and can be used by clients to display ownership, lifecycle timestamps, or any other contextual information that is available via Prometheus metrics.
 
 #### Example
 
@@ -84,6 +129,10 @@ The `GET /v1/environment/test` endpoint will return:
 	"url": {
 		"api": "https://api-test.example.com",
 		"dashboard": "https://app-test.example.com"
+	},
+	"meta": {
+		"owner": "team-mobile",
+		"lastDeploy": "2025-10-11T19:55:00Z"
 	},
 	"name": "test",
 	"namespace": "env-test"

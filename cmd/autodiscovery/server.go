@@ -156,7 +156,7 @@ func handleGetEnvironment(s *store.Store) http.Handler {
 			return
 		}
 
-		es, err := env.ResolveProbes(r.Context(), nil)
+		es, err := env.ResolveProbes(r.Context(), true, nil)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to resolve probes for environment", "error", err, "name", name)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -177,7 +177,7 @@ func handleGetAllEnvironments(s *store.Store) http.Handler {
 		res := make([]store.EnvironmentResponse, 0, len(envs))
 
 		for _, env := range envs {
-			es, err := env.ResolveProbes(r.Context(), includeStatus)
+			es, err := env.ResolveProbes(r.Context(), false, includeStatus)
 			if err != nil {
 				slog.ErrorContext(r.Context(), "failed to resolve probes for environment", "error", err, "name", env.Name)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)

@@ -217,9 +217,12 @@ func (q *environmentQuery) Text(ctx context.Context) (string, error) {
 	}
 
 	extract := model.LabelName(q.query.Config().ExtractLabel)
-	label := string(sample.Metric[extract])
+	if extract != "" {
+		label := string(sample.Metric[extract])
+		return label, nil
+	}
 
-	return cmp.Or(label, sample.Value.String(), ""), nil
+	return sample.Value.String(), nil
 }
 
 func (q *environmentQuery) sample(ctx context.Context) (model.Sample, error) {

@@ -17,16 +17,18 @@ const (
 
 // Environment is a empheral environment representation.
 type Environment struct {
-	CreatedAt    time.Time                    `json:"createdAt"`
-	URL          map[string]string            `json:"url"`
-	StatusChecks map[string]probe.Probe[bool] `json:"-"`
-	Name         string                       `json:"name"`
-	Namespace    string                       `json:"namespace"`
+	CreatedAt    time.Time                      `json:"createdAt"`
+	URL          map[string]string              `json:"url"`
+	StatusChecks map[string]probe.Probe[bool]   `json:"-"`
+	MetaProbes   map[string]probe.MetadataProbe `json:"-"`
+	Name         string                         `json:"name"`
+	Namespace    string                         `json:"namespace"`
 }
 
 type EnvironmentResponse struct {
 	Status        map[string]bool      `json:"status"`
 	StatusUpdated map[string]time.Time `json:"statusUpdatedAt"`
+	Meta          map[string]any       `json:"meta,omitempty"`
 	Environment
 }
 
@@ -83,6 +85,19 @@ func (e *Environment) IsValid() (problems map[string]string) {
 		}
 	}
 
+	if e.MetaProbes == nil {
+		problems["metadata"] = invalidNil
+	} else {
+		for k, v := range e.MetaProbes {
+			if k == "" {
+				problems["metadataKey"] = invalidEmpty
+			}
+			if v == nil {
+				problems["metadataValue"] = invalidNil
+			}
+		}
+	}
+
 	return problems
 }
 
@@ -107,6 +122,10 @@ func (e *Environment) UpdateEnvironment(_ context.Context, env Environment) erro
 
 	if env.StatusChecks != nil {
 		e.StatusChecks = env.StatusChecks
+	}
+
+	if env.MetaProbes != nil {
+		e.MetaProbes = env.MetaProbes
 	}
 
 	return nil
@@ -136,11 +155,27 @@ func (e *Environment) MatchesStatus(ctx context.Context, state map[string]bool) 
 // ResolveProbes resolves the probes for the environment using the provided prober.
 // The statusChecks slice contains the names of the probes to resolve. If nil, all
 // probes in the environment will be resolved. Empty slice means no probes will be resolved.
-func (e *Environment) ResolveProbes(ctx context.Context, status map[string]bool) (EnvironmentResponse, error) {
+func (e *Environment) ResolveProbes(ctx context.Context, includeMeta bool, status map[string]bool) (EnvironmentResponse, error) {
 	res := EnvironmentResponse{
 		Environment:   *e,
 		Status:        make(map[string]bool),
 		StatusUpdated: make(map[string]time.Time),
+	}
+
+	if includeMeta {
+		res.Meta = make(map[string]any)
+
+		if e.MetaProbes != nil {
+			for name, probe := range e.MetaProbes {
+				val, err := probe.Value(ctx)
+				if err != nil {
+					slog.ErrorContext(ctx, "failed to get metadata value", "error", err, "name", e.Name, "metadata", name)
+					return res, fmt.Errorf("failed to get metadata value for probe %q: %w", name, err)
+				}
+
+				res.Meta[name] = val
+			}
+		}
 	}
 
 	if e.StatusChecks != nil && len(e.StatusChecks) == 0 {
