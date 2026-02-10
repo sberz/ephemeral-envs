@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 
@@ -143,16 +144,15 @@ func (c *EventHandler) buildStatusChecks(ctx context.Context, envName string, ns
 func (c *EventHandler) buildMetadataProbes(ctx context.Context, envName string, ns *corev1.Namespace) map[string]probe.MetadataProbe {
 	probes := make(map[string]probe.MetadataProbe)
 
-	// for k, v := range ns.Annotations {
-	// 	if !strings.HasPrefix(k, AnnotationEnvMetadataPrefix) {
-	// 		continue
-	// 	}
+	for k, v := range ns.Annotations {
+		if !strings.HasPrefix(k, AnnotationEnvMetadataPrefix) {
+			continue
+		}
 
-	// 	slog.DebugContext(ctx, "found environment metadata annotation", "key", k, "value", v)
-
-	// 	metaName := strings.TrimPrefix(k, AnnotationEnvMetadataPrefix)
-	// 	probes[metaName] = probe.NewStaticMetadataProbe(v)
-	// }
+		slog.DebugContext(ctx, "found environment metadata annotation", "key", k, "value", v)
+		metaName := strings.TrimPrefix(k, AnnotationEnvMetadataPrefix)
+		probes[metaName] = parseMetadataAnnotation(ctx, v)
+	}
 
 	for meta, err := range c.metadata {
 		if _, exists := probes[meta]; exists {
@@ -168,4 +168,24 @@ func (c *EventHandler) buildMetadataProbes(ctx context.Context, envName string, 
 		probes[meta] = probe
 	}
 	return probes
+}
+
+// parseMetadataAnnotation tries to parse a metadata annotation as json. If it fails, it falls back to a static string probe.
+func parseMetadataAnnotation(ctx context.Context, value string) probe.MetadataProbe {
+	// Try to parse as JSON
+	var jsonVal any
+	err := json.Unmarshal([]byte(value), &jsonVal)
+
+	switch v := jsonVal.(type) {
+	case bool:
+		return probe.WrapProbe(probe.NewStaticProbe(v))
+	case float64:
+		return probe.WrapProbe(probe.NewStaticProbe(v))
+	case string:
+		return probe.WrapProbe(probe.NewStaticProbe(v))
+	// Unmarshal will unmarshal into time.Time. It will be a string instead.
+	default:
+		slog.DebugContext(ctx, "failed to parse metadata annotation as JSON, falling back to static string", "value", value, "error", err)
+		return probe.WrapProbe(probe.NewStaticProbe(value))
+	}
 }

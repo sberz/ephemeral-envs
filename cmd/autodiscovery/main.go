@@ -22,6 +22,7 @@ const (
 
 	AnnotationEnvURLPrefix         = "url.envs.sberz.de/"
 	AnnotationEnvStatusCheckPrefix = "status.envs.sberz.de/"
+	AnnotationEnvMetadataPrefix    = "metadata.envs.sberz.de/"
 )
 
 var logLevel = &slog.LevelVar{}

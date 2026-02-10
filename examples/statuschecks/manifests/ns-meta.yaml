@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: env-test-meta
+  labels:
+    envs.sberz.de/name: test-meta
+  annotations:
+    url.envs.sberz.de/api: "https://api-test-meta.example.com"
+    url.envs.sberz.de/dashboard: "https://app-test-meta.example.com"
+    metadata.envs.sberz.de/static-owner: '"simon"'
+    metadata.envs.sberz.de/static-text-unquoted: "bla"
+    metadata.envs.sberz.de/static-value: "3"
+    metadata.envs.sberz.de/static-flag: "true"
+    metadata.envs.sberz.de/static-expires: "2024-01-01T12:00:00Z"
+
