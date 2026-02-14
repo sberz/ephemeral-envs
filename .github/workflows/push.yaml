@@ -21,6 +21,15 @@ jobs:
 
       - run: make build
 
+      - name: Run Unit & Integration Tests
+        run: make test
+
+      - name: Setup Kind Cluster for Testing
+        run: make testing/setup
+
+      - name: Run E2E Tests
+        run: make testing/e2e
+
   check-chart:
     runs-on: ubuntu-latest
     permissions:
