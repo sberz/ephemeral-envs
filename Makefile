@@ -1,3 +1,7 @@
+KUBECONFIG ?= $(realpath ./kind-kubeconfig.yaml)
+
+export KUBECONFIG
+
 ## help: print this help message
 .PHONY: help
 help:
@@ -14,6 +18,16 @@ build:
 lint:
 	@echo "Running linters..."
 	golangci-lint run ./...
+
+## test: run all tests
+.PHONY: test
+test:
+	go test -v ./...
+
+## testing/e2e: run e2e tests only (assumes make testing/setup has already been run)
+.PHONY: testing/e2e
+testing/e2e:
+	@go test -tags=e2e -count=1 -v -run '^TestE2E' ./cmd/autodiscovery
 
 ## testing/setup/cluster: setup kind cluster for testing
 .PHONY: testing/setup/cluster

@@ -226,6 +226,7 @@ func parseStatusFilter(r *http.Request, param string) map[string]bool {
 
 		if strings.HasPrefix(f, "!") {
 			f = strings.TrimPrefix(f, "!")
+			f = strings.TrimSpace(f)
 			if f == "" {
 				continue
 			}

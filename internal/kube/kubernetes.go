@@ -122,6 +122,14 @@ func WatchNamespaceEvents(
 
 // toNamespace converts the object from the event handler to a *corev1.Namespace.
 func toNamespace(ctx context.Context, obj interface{}) *corev1.Namespace {
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone.Obj
+	}
+
+	if tombstone, ok := obj.(*cache.DeletedFinalStateUnknown); ok && tombstone != nil {
+		obj = tombstone.Obj
+	}
+
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok || ns == nil {
 		slog.ErrorContext(ctx, "received object is not a Namespace", "objectType", fmt.Sprintf("%T", obj))
