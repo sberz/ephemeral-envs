@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -154,13 +155,13 @@ func (c *EventHandler) buildMetadataProbes(ctx context.Context, envName string, 
 		probes[metaName] = parseMetadataAnnotation(ctx, v)
 	}
 
-	for meta, err := range c.metadata {
+	for meta, prober := range c.metadata {
 		if _, exists := probes[meta]; exists {
 			// Already defined via annotation
 			continue
 		}
 
-		probe, err := err.AddEnvironment(envName, ns.Name)
+		probe, err := prober.AddEnvironment(envName, ns.Name)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to add environment to metadata prober", "metadata", meta, "env_name", envName, "error", err)
 			continue
@@ -175,6 +176,10 @@ func parseMetadataAnnotation(ctx context.Context, value string) probe.MetadataPr
 	// Try to parse as JSON
 	var jsonVal any
 	err := json.Unmarshal([]byte(value), &jsonVal)
+	if err != nil {
+		slog.DebugContext(ctx, "failed to parse metadata annotation as JSON, falling back to static string", "value", value, "error", err)
+		return probe.WrapProbe(probe.NewStaticProbe(value))
+	}
 
 	switch v := jsonVal.(type) {
 	case bool:
@@ -183,9 +188,9 @@ func parseMetadataAnnotation(ctx context.Context, value string) probe.MetadataPr
 		return probe.WrapProbe(probe.NewStaticProbe(v))
 	case string:
 		return probe.WrapProbe(probe.NewStaticProbe(v))
-	// Unmarshal will unmarshal into time.Time. It will be a string instead.
+	// Unmarshal will not produce time.Time directly. Timestamps remain strings.
 	default:
-		slog.DebugContext(ctx, "failed to parse metadata annotation as JSON, falling back to static string", "value", value, "error", err)
+		slog.DebugContext(ctx, "metadata annotation JSON type is unsupported, falling back to static string", "value", value, "type", fmt.Sprintf("%T", jsonVal))
 		return probe.WrapProbe(probe.NewStaticProbe(value))
 	}
 }

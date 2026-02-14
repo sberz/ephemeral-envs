@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	ErrInvalidEnvironment    = fmt.Errorf("invalid environment")
-	ErrEnvironmentNotFound   = fmt.Errorf("environment not found")
-	ErrImmutableFieldChanged = fmt.Errorf("immutable field changed")
+	ErrInvalidEnvironment    = errors.New("invalid environment")
+	ErrEnvironmentNotFound   = errors.New("environment not found")
+	ErrImmutableFieldChanged = errors.New("immutable field changed")
 )
 
 var envInfo = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -151,10 +151,10 @@ func (s *Store) GetEnvironmentNamesWithState(ctx context.Context, state map[stri
 		if env.MatchesStatus(ctx, state) {
 			envs = append(envs, name)
 		}
-
-		// Sort the names for consistent ordering
-		slices.Sort(envs)
 	}
+
+	// Sort the names for consistent ordering
+	slices.Sort(envs)
 
 	return envs
 }

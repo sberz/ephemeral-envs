@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,12 +46,10 @@ func main() {
 		slog.ErrorContext(ctx, "failed to run autodiscovery", "error", err)
 		os.Exit(1)
 	}
-
-	os.Exit(0)
 }
 
 func run(ctx context.Context, args []string) error {
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	cfg, err := parseConfig(args)
@@ -102,37 +101,56 @@ func run(ctx context.Context, args []string) error {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
+	serverErrs := make(chan error, 2)
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.ErrorContext(ctx, "HTTP server failed", "error", err)
-			os.Exit(1)
+			serverErrs <- fmt.Errorf("HTTP server failed: %w", err)
 		}
 	}()
 
+	var metricsServer *http.Server
 	if cfg.MetricsPort != 0 {
 		slog.DebugContext(ctx, "starting metrics server", "port", cfg.MetricsPort)
 
-		http.Handle("/metrics", promhttp.Handler())
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("/metrics", promhttp.Handler())
+
+		metricsServer = &http.Server{
+			Addr:         fmt.Sprintf(":%d", cfg.MetricsPort),
+			Handler:      metricsMux,
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		}
+
 		go func() {
-			//nolint:gosec // G114 - not relevant for this internal only server
-			if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.MetricsPort), nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				slog.ErrorContext(ctx, "metrics server failed", "error", err)
-				os.Exit(1)
+			if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErrs <- fmt.Errorf("metrics server failed: %w", err)
 			}
 		}()
 	}
 
 	slog.InfoContext(ctx, "autodiscovery service started", "address", server.Addr)
 
-	// Wait for the server to shut down gracefully
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+		// shutdown below
+	case err := <-serverErrs:
+		return err
+	}
+
 	slog.InfoContext(ctx, "shutting down server gracefully")
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("failed to shut down server gracefully: %w", err)
+	}
+
+	if metricsServer != nil {
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("failed to shut down metrics server gracefully: %w", err)
+		}
 	}
 
 	return nil

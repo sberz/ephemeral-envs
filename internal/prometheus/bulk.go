@@ -122,8 +122,8 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 	for _, sample := range samples {
 		key := string(sample.Metric[model.LabelName(q.cfg.MatchLabel)])
 
-		if time.Since(samples[0].Timestamp.Time()).Abs() > sampleDriftAllowance {
-			log.WarnContext(ctx, "prometheus query result is stale", "result_timestamp", samples[0].Timestamp.Time())
+		if time.Since(sample.Timestamp.Time()).Abs() > sampleDriftAllowance {
+			log.WarnContext(ctx, "prometheus query result is stale", "result_timestamp", sample.Timestamp.Time())
 		}
 
 		q.valCache[key] = *sample

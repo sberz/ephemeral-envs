@@ -44,7 +44,7 @@ func NewServerHandler(store *store.Store) http.Handler {
 	return handler
 }
 
-// middlewareLogging logs all incoming request wit therir method, path, IP and duration.
+// middlewareLogging logs all incoming requests with their method, path, IP and duration.
 func middlewareLogging(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -191,18 +191,15 @@ func handleGetAllEnvironments(s *store.Store) http.Handler {
 }
 
 func encodeResponse[T any](w http.ResponseWriter, _ *http.Request, status int, data T) error {
-	// Encode the response data as JSON so errors can still be handled gracefully
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal response data: %w", err)
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_, err = w.Write(jsonData)
-	if err != nil {
+
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(data); err != nil {
 		return fmt.Errorf("failed to write response: %w", err)
 	}
+
 	return nil
 }
 
@@ -222,8 +219,17 @@ func parseStatusFilter(r *http.Request, param string) map[string]bool {
 	}
 
 	for _, f := range strings.Split(query, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+
 		if strings.HasPrefix(f, "!") {
-			filter[strings.TrimPrefix(f, "!")] = false
+			f = strings.TrimPrefix(f, "!")
+			if f == "" {
+				continue
+			}
+			filter[f] = false
 		} else {
 			filter[f] = true
 		}

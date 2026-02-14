@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
+
+var ErrInformerCacheSyncFailed = errors.New("failed to sync informer cache")
 
 // GetClient return a configured Kubernetes client. It uses the kube config file set in the KUBECONFIG environment variable if it is set, otherwise it uses in-cluster configuration.
 func GetClient() (*kubernetes.Clientset, error) {
@@ -108,7 +111,11 @@ func WatchNamespaceEvents(
 	}
 
 	factory.Start(ctx.Done())
-	factory.WaitForCacheSync(ctx.Done())
+	for informerType, synced := range factory.WaitForCacheSync(ctx.Done()) {
+		if !synced {
+			return fmt.Errorf("%w: %v", ErrInformerCacheSyncFailed, informerType)
+		}
+	}
 
 	return nil
 }
