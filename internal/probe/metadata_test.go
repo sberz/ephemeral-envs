@@ -1,7 +1,6 @@
 package probe
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -54,7 +53,7 @@ func TestWrapProbe(t *testing.T) {
 	inner := NewStaticProbe("team-a")
 	wrapped := WrapProbe[string](inner)
 
-	val, err := wrapped.Value(context.Background())
+	val, err := wrapped.Value(t.Context())
 	if err != nil {
 		t.Fatalf("WrapProbe().Value() error = %v", err)
 	}
@@ -82,7 +81,7 @@ func TestWrapProber(t *testing.T) {
 		t.Fatalf("MetadataProber.AddEnvironment() error = %v", err)
 	}
 
-	metaVal, err := metaProbe.Value(context.Background())
+	metaVal, err := metaProbe.Value(t.Context())
 	if err != nil {
 		t.Fatalf("MetadataProbe.Value() error = %v", err)
 	}
@@ -125,7 +124,7 @@ func TestNewPrometheusMetadataProberInvalidType(t *testing.T) {
 	t.Parallel()
 
 	cfg := prom.QueryConfig{}
-	if _, err := NewPrometheusMetadataProber(context.Background(), &prom.Prometheus{}, MetadataType("invalid"), cfg); !errors.Is(err, ErrInvalidType) {
+	if _, err := NewPrometheusMetadataProber(t.Context(), &prom.Prometheus{}, MetadataType("invalid"), cfg); !errors.Is(err, ErrInvalidType) {
 		t.Fatalf("NewPrometheusMetadataProber() error = %v, want ErrInvalidType", err)
 	}
 }

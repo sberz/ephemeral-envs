@@ -1,7 +1,6 @@
 package prometheus
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"sync"
@@ -43,12 +42,12 @@ func TestBulkValueQueryCacheAndMatchBehavior(t *testing.T) {
 		Timeout:    2 * time.Second,
 	}
 
-	q, err := NewBulkValueQuery(context.Background(), prom, cfg)
+	q, err := NewBulkValueQuery(t.Context(), prom, cfg)
 	if err != nil {
 		t.Fatalf("NewBulkValueQuery() error = %v", err)
 	}
 
-	sampleA, err := q.queryForEnvironment(context.Background(), "env-a", "ns-a")
+	sampleA, err := q.queryForEnvironment(t.Context(), "env-a", "ns-a")
 	if err != nil {
 		t.Fatalf("queryForEnvironment(ns-a) error = %v", err)
 	}
@@ -56,7 +55,7 @@ func TestBulkValueQueryCacheAndMatchBehavior(t *testing.T) {
 		t.Fatalf("sampleA.Value = %v, want 1", sampleA.Value)
 	}
 
-	sampleB, err := q.queryForEnvironment(context.Background(), "env-b", "ns-b")
+	sampleB, err := q.queryForEnvironment(t.Context(), "env-b", "ns-b")
 	if err != nil {
 		t.Fatalf("queryForEnvironment(ns-b) error = %v", err)
 	}
@@ -64,7 +63,7 @@ func TestBulkValueQueryCacheAndMatchBehavior(t *testing.T) {
 		t.Fatalf("sampleB.Value = %v, want 0", sampleB.Value)
 	}
 
-	sampleMissing, err := q.queryForEnvironment(context.Background(), "env-c", "ns-c")
+	sampleMissing, err := q.queryForEnvironment(t.Context(), "env-c", "ns-c")
 	if err != nil {
 		t.Fatalf("queryForEnvironment(ns-c) error = %v", err)
 	}
@@ -98,12 +97,12 @@ func TestBulkValueQueryResultTypeError(t *testing.T) {
 		Timeout:    2 * time.Second,
 	}
 
-	q, err := NewBulkValueQuery(context.Background(), prom, cfg)
+	q, err := NewBulkValueQuery(t.Context(), prom, cfg)
 	if err != nil {
 		t.Fatalf("NewBulkValueQuery() error = %v", err)
 	}
 
-	_, err = q.queryForEnvironment(context.Background(), "env", "ns")
+	_, err = q.queryForEnvironment(t.Context(), "env", "ns")
 	if !errors.Is(err, ErrResultNotParsable) {
 		t.Fatalf("queryForEnvironment() error = %v, want ErrResultNotParsable", err)
 	}

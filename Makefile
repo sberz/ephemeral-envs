@@ -22,12 +22,12 @@ lint:
 ## test: run all tests
 .PHONY: test
 test:
-	go test -v ./...
+	go test -short -v ./...
 
 ## testing/e2e: run e2e tests only (assumes make testing/setup has already been run)
 .PHONY: testing/e2e
 testing/e2e:
-	@go test -tags=e2e -count=1 -v -run '^TestE2E' ./cmd/autodiscovery
+	@go test -count=1 -v -run '^TestE2E' ./cmd/autodiscovery
 
 ## testing/setup/cluster: setup kind cluster for testing
 .PHONY: testing/setup/cluster

@@ -48,7 +48,7 @@ func TestPrometheusProbeValueAndConversion(t *testing.T) {
 		t.Fatalf("NewPrometheusProbe() error = %v", err)
 	}
 
-	got, err := p.Value(context.Background())
+	got, err := p.Value(t.Context())
 	if err != nil {
 		t.Fatalf("Value() error = %v", err)
 	}
@@ -75,7 +75,7 @@ func TestPrometheusProbeValueErrorPaths(t *testing.T) {
 			t.Fatalf("NewPrometheusProbe() error = %v", err)
 		}
 
-		if _, err := p.Value(context.Background()); err == nil {
+		if _, err := p.Value(t.Context()); err == nil {
 			t.Fatal("Value() error = nil, want non-nil")
 		}
 	})
@@ -89,7 +89,7 @@ func TestPrometheusProbeValueErrorPaths(t *testing.T) {
 			t.Fatalf("NewPrometheusProbe() error = %v", err)
 		}
 
-		if _, err := p.Value(context.Background()); err == nil {
+		if _, err := p.Value(t.Context()); err == nil {
 			t.Fatal("Value() error = nil, want non-nil")
 		}
 	})
@@ -105,22 +105,21 @@ func TestPrometheusProbeValueErrorPaths(t *testing.T) {
 			t.Fatalf("NewPrometheusProbe() error = %v", err)
 		}
 
-		if _, err := p.Value(context.Background()); err == nil {
+		if _, err := p.Value(t.Context()); err == nil {
 			t.Fatal("Value() error = nil, want non-nil")
 		}
 	})
 }
 
-//nolint:govet // Table layout prioritizes readability of validation scenarios.
 func TestNewPrometheusProberValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		cfg       prom.QueryConfig
+		wantErr   error
 		prom      *prom.Prometheus
 		converter ConverterFunc[bool]
-		wantErr   error
 		name      string
+		cfg       prom.QueryConfig
 	}{
 		{
 			name:      "nil prometheus",
@@ -149,7 +148,7 @@ func TestNewPrometheusProberValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := NewPrometheusProber[bool](context.Background(), tt.prom, tt.cfg, tt.converter); !errors.Is(err, tt.wantErr) {
+			if _, err := NewPrometheusProber[bool](t.Context(), tt.prom, tt.cfg, tt.converter); !errors.Is(err, tt.wantErr) {
 				t.Fatalf("NewPrometheusProber() error = %v, want %v", err, tt.wantErr)
 			}
 		})
@@ -158,11 +157,10 @@ func TestNewPrometheusProberValidation(t *testing.T) {
 
 type intLikeFloat float64
 
-//nolint:govet // Test helper keeps fields explicit for readability in assertions.
 type fakeQueryExecutor struct {
-	text          string
 	valueErr      error
 	textErr       error
+	text          string
 	updatedAtUnix int64
 	value         float64
 }

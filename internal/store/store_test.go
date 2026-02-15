@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"errors"
 	"maps"
 	"slices"
@@ -14,7 +13,7 @@ import (
 func TestStoreGetEnvironmentNamesWithStateSorted(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	s := NewStore()
 
 	envs := []Environment{
@@ -40,7 +39,7 @@ func TestStoreGetEnvironmentNamesWithStateSorted(t *testing.T) {
 func TestStoreUpdateEnvironmentImmutableChangeReadds(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	s := NewStore()
 
 	createdAt := time.Unix(1700000000, 0).UTC()
@@ -148,7 +147,7 @@ func TestEnvironmentIsValidInvalid(t *testing.T) {
 func TestStoreCRUDAndListing(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	s := NewStore()
 
 	envA := newTestEnvironment("b", "env-b", map[string]bool{"healthy": true})
@@ -203,7 +202,7 @@ func TestStoreCRUDAndListing(t *testing.T) {
 func TestStoreUpdateEnvironmentAddsWhenMissing(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	s := NewStore()
 	env := newTestEnvironment("new", "env-new", map[string]bool{"healthy": true})
 

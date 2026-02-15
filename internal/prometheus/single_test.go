@@ -1,7 +1,6 @@
 package prometheus
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -37,12 +36,12 @@ func TestSingleValueQueryQueryForEnvironment(t *testing.T) {
 		Timeout:  2 * time.Second,
 	}
 
-	q, err := NewSingleValueQuery(context.Background(), prom, cfg)
+	q, err := NewSingleValueQuery(t.Context(), prom, cfg)
 	if err != nil {
 		t.Fatalf("NewSingleValueQuery() error = %v", err)
 	}
 
-	sample, err := q.queryForEnvironment(context.Background(), "env-a", "env-ns")
+	sample, err := q.queryForEnvironment(t.Context(), "env-a", "env-ns")
 	if err != nil {
 		t.Fatalf("queryForEnvironment() error = %v", err)
 	}
@@ -70,12 +69,12 @@ func TestSingleValueQueryErrorCases(t *testing.T) {
 		defer closeFn()
 
 		cfg := QueryConfig{Name: "noresult", Kind: QueryKindSingleValue, Query: `vector(1)`, Interval: 30 * time.Second, Timeout: 2 * time.Second}
-		q, err := NewSingleValueQuery(context.Background(), prom, cfg)
+		q, err := NewSingleValueQuery(t.Context(), prom, cfg)
 		if err != nil {
 			t.Fatalf("NewSingleValueQuery() error = %v", err)
 		}
 
-		_, err = q.queryForEnvironment(context.Background(), "env", "ns")
+		_, err = q.queryForEnvironment(t.Context(), "env", "ns")
 		if !errors.Is(err, ErrResultNotFound) {
 			t.Fatalf("queryForEnvironment() error = %v, want ErrResultNotFound", err)
 		}
@@ -90,12 +89,12 @@ func TestSingleValueQueryErrorCases(t *testing.T) {
 		defer closeFn()
 
 		cfg := QueryConfig{Name: "many", Kind: QueryKindSingleValue, Query: `vector(1)`, Interval: 30 * time.Second, Timeout: 2 * time.Second}
-		q, err := NewSingleValueQuery(context.Background(), prom, cfg)
+		q, err := NewSingleValueQuery(t.Context(), prom, cfg)
 		if err != nil {
 			t.Fatalf("NewSingleValueQuery() error = %v", err)
 		}
 
-		_, err = q.queryForEnvironment(context.Background(), "env", "ns")
+		_, err = q.queryForEnvironment(t.Context(), "env", "ns")
 		if !errors.Is(err, ErrTooManyResults) {
 			t.Fatalf("queryForEnvironment() error = %v, want ErrTooManyResults", err)
 		}

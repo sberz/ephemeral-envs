@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"testing"
 )
 
@@ -44,8 +43,8 @@ func TestParseMetadataAnnotation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			p := parseMetadataAnnotation(context.Background(), tt.value)
-			got, err := p.Value(context.Background())
+			p := parseMetadataAnnotation(t.Context(), tt.value)
+			got, err := p.Value(t.Context())
 			if err != nil {
 				t.Fatalf("Value() error = %v", err)
 			}

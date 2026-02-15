@@ -17,12 +17,11 @@ import (
 func TestParseStatusFilter(t *testing.T) {
 	t.Parallel()
 
-	//nolint:govet // Keep table field grouping focused on readability in tests.
 	tests := []struct {
+		want  map[string]bool
 		name  string
 		url   string
 		param string
-		want  map[string]bool
 	}{
 		{
 			name:  "empty query",
@@ -131,10 +130,10 @@ func TestHandleGetAllEnvironmentsWithStatusFilter(t *testing.T) {
 	t.Parallel()
 
 	s := store.NewStore()
-	if err := s.AddEnvironment(context.Background(), newTestEnvironment("a", "env-a", true, false)); err != nil {
+	if err := s.AddEnvironment(t.Context(), newTestEnvironment("a", "env-a", true, false)); err != nil {
 		t.Fatalf("AddEnvironment(a) error = %v", err)
 	}
-	if err := s.AddEnvironment(context.Background(), newTestEnvironment("b", "env-b", false, true)); err != nil {
+	if err := s.AddEnvironment(t.Context(), newTestEnvironment("b", "env-b", false, true)); err != nil {
 		t.Fatalf("AddEnvironment(b) error = %v", err)
 	}
 
@@ -442,9 +441,8 @@ func newTestStoreWithEnvironments(t *testing.T, envs ...store.Environment) *stor
 	t.Helper()
 
 	s := store.NewStore()
-	ctx := context.Background()
 	for _, env := range envs {
-		if err := s.AddEnvironment(ctx, env); err != nil {
+		if err := s.AddEnvironment(t.Context(), env); err != nil {
 			t.Fatalf("AddEnvironment(%s) error = %v", env.Name, err)
 		}
 	}

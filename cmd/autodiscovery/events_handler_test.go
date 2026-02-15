@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -18,7 +17,7 @@ func TestEventHandlerBuildStatusChecksAnnotationOverridesProber(t *testing.T) {
 	promOKProber := &recordingBoolProber{probe: probe.NewStaticProbe(true)}
 	extraProber := &recordingBoolProber{probe: probe.NewStaticProbe(true)}
 
-	h := NewEventHandler(context.Background(), store.NewStore(), map[string]probe.Prober[bool]{
+	h := NewEventHandler(t.Context(), store.NewStore(), map[string]probe.Prober[bool]{
 		"prom_ok":     promOKProber,
 		"from_prober": extraProber,
 	}, nil)
@@ -31,9 +30,9 @@ func TestEventHandlerBuildStatusChecksAnnotationOverridesProber(t *testing.T) {
 		},
 	}}
 
-	checks := h.buildStatusChecks(context.Background(), "a", ns)
+	checks := h.buildStatusChecks(t.Context(), "a", ns)
 
-	promOKVal, err := checks["prom_ok"].Value(context.Background())
+	promOKVal, err := checks["prom_ok"].Value(t.Context())
 	if err != nil {
 		t.Fatalf("prom_ok Value() error = %v", err)
 	}
@@ -49,7 +48,7 @@ func TestEventHandlerBuildStatusChecksAnnotationOverridesProber(t *testing.T) {
 		t.Fatalf("extraProber calls = %d, want 1", extraProber.calls)
 	}
 
-	extraVal, err := checks["from_prober"].Value(context.Background())
+	extraVal, err := checks["from_prober"].Value(t.Context())
 	if err != nil {
 		t.Fatalf("from_prober Value() error = %v", err)
 	}
@@ -64,7 +63,7 @@ func TestEventHandlerBuildMetadataProbesAnnotationOverridesProber(t *testing.T) 
 	ownerProber := &recordingMetadataProber{probe: probe.WrapProbe(probe.NewStaticProbe("team-prober"))}
 	extraProber := &recordingMetadataProber{probe: probe.WrapProbe(probe.NewStaticProbe("extra"))}
 
-	h := NewEventHandler(context.Background(), store.NewStore(), nil, map[string]probe.MetadataProber{
+	h := NewEventHandler(t.Context(), store.NewStore(), nil, map[string]probe.MetadataProber{
 		"owner":       ownerProber,
 		"from_prober": extraProber,
 	})
@@ -76,9 +75,9 @@ func TestEventHandlerBuildMetadataProbesAnnotationOverridesProber(t *testing.T) 
 		},
 	}}
 
-	meta := h.buildMetadataProbes(context.Background(), "a", ns)
+	meta := h.buildMetadataProbes(t.Context(), "a", ns)
 
-	ownerVal, err := meta["owner"].Value(context.Background())
+	ownerVal, err := meta["owner"].Value(t.Context())
 	if err != nil {
 		t.Fatalf("owner Value() error = %v", err)
 	}
@@ -99,7 +98,7 @@ func TestEventHandlerHandleNamespaceUpdateRenameAndDelete(t *testing.T) {
 	t.Parallel()
 
 	s := store.NewStore()
-	h := NewEventHandler(context.Background(), s, nil, nil)
+	h := NewEventHandler(t.Context(), s, nil, nil)
 
 	created := time.Unix(1_700_000_000, 0).UTC()
 	oldNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
@@ -113,18 +112,18 @@ func TestEventHandlerHandleNamespaceUpdateRenameAndDelete(t *testing.T) {
 		},
 	}}
 
-	h.HandleNamespaceAdd(context.Background(), oldNS)
+	h.HandleNamespaceAdd(t.Context(), oldNS)
 
 	newNS := oldNS.DeepCopy()
 	newNS.Labels[LabelEnvName] = "new"
 	newNS.Annotations[AnnotationEnvURLPrefix+"app"] = "https://new.example.test"
-	h.HandleNamespaceUpdate(context.Background(), oldNS, newNS)
+	h.HandleNamespaceUpdate(t.Context(), oldNS, newNS)
 
-	if _, err := s.GetEnvironment(context.Background(), "old"); !errors.Is(err, store.ErrEnvironmentNotFound) {
+	if _, err := s.GetEnvironment(t.Context(), "old"); !errors.Is(err, store.ErrEnvironmentNotFound) {
 		t.Fatalf("GetEnvironment(old) error = %v, want ErrEnvironmentNotFound", err)
 	}
 
-	env, err := s.GetEnvironment(context.Background(), "new")
+	env, err := s.GetEnvironment(t.Context(), "new")
 	if err != nil {
 		t.Fatalf("GetEnvironment(new) error = %v", err)
 	}
@@ -132,8 +131,8 @@ func TestEventHandlerHandleNamespaceUpdateRenameAndDelete(t *testing.T) {
 		t.Fatalf("env.URL[app] = %q, want %q", env.URL["app"], "https://new.example.test")
 	}
 
-	h.HandleNamespaceDelete(context.Background(), newNS)
-	if _, err := s.GetEnvironment(context.Background(), "new"); !errors.Is(err, store.ErrEnvironmentNotFound) {
+	h.HandleNamespaceDelete(t.Context(), newNS)
+	if _, err := s.GetEnvironment(t.Context(), "new"); !errors.Is(err, store.ErrEnvironmentNotFound) {
 		t.Fatalf("GetEnvironment(new) after delete error = %v, want ErrEnvironmentNotFound", err)
 	}
 }

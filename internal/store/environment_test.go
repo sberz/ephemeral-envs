@@ -10,7 +10,6 @@ import (
 	"github.com/sberz/ephemeral-envs/internal/probe"
 )
 
-//nolint:gocognit // Comprehensive table-driven test intentionally covers many ResolveProbes branches.
 func TestEnvironmentResolveProbesFilterAndMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -30,16 +29,14 @@ func TestEnvironmentResolveProbesFilterAndMetadata(t *testing.T) {
 		},
 	}
 
-	//nolint:govet // Keep table field order for readability.
-	tests := []struct {
-		env            Environment
-		includeMeta    bool
+	successTests := []struct {
 		filter         map[string]bool
 		wantStatus     map[string]bool
 		wantStatusKeys map[string]bool
 		wantMeta       map[string]any
-		wantErr        bool
+		env            Environment
 		name           string
+		includeMeta    bool
 	}{
 		{
 			name:        "filter and metadata",
@@ -103,6 +100,13 @@ func TestEnvironmentResolveProbesFilterAndMetadata(t *testing.T) {
 			wantStatusKeys: map[string]bool{},
 			wantMeta:       map[string]any{"owner": "team-core"},
 		},
+	}
+
+	errorTests := []struct {
+		env         Environment
+		name        string
+		includeMeta bool
+	}{
 		{
 			name: "status probe error",
 			env: Environment{
@@ -116,7 +120,6 @@ func TestEnvironmentResolveProbesFilterAndMetadata(t *testing.T) {
 				MetaProbes: map[string]probe.MetadataProbe{},
 			},
 			includeMeta: false,
-			wantErr:     true,
 		},
 		{
 			name: "metadata probe error",
@@ -133,49 +136,69 @@ func TestEnvironmentResolveProbesFilterAndMetadata(t *testing.T) {
 				},
 			},
 			includeMeta: true,
-			wantErr:     true,
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range successTests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			res, err := tt.env.ResolveProbes(context.Background(), tt.includeMeta, tt.filter)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("ResolveProbes() error = nil, want non-nil")
-				}
-
-				if !errors.Is(err, errProbeFailed) {
-					t.Fatalf("ResolveProbes() error = %v, want wrapped errProbeFailed", err)
-				}
-
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("ResolveProbes() error = %v", err)
-			}
-
-			if !maps.Equal(res.Status, tt.wantStatus) {
-				t.Fatalf("status = %#v, want %#v", res.Status, tt.wantStatus)
-			}
-
-			if !maps.EqualFunc(res.Meta, tt.wantMeta, func(a any, b any) bool { return a == b }) {
-				t.Fatalf("meta = %#v, want %#v", res.Meta, tt.wantMeta)
-			}
-
-			if len(res.StatusUpdated) != len(tt.wantStatusKeys) {
-				t.Fatalf("statusUpdated len = %d, want %d", len(res.StatusUpdated), len(tt.wantStatusKeys))
-			}
-
-			for key := range tt.wantStatusKeys {
-				if _, ok := res.StatusUpdated[key]; !ok {
-					t.Fatalf("statusUpdated missing key %q in %#v", key, res.StatusUpdated)
-				}
-			}
+			assertResolveProbesSuccess(t, tt.env, tt.includeMeta, tt.filter, tt.wantStatus, tt.wantMeta, tt.wantStatusKeys)
 		})
+	}
+
+	for _, tt := range errorTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assertResolveProbesError(t, tt.env, tt.includeMeta)
+		})
+	}
+}
+
+func assertResolveProbesSuccess(
+	t *testing.T,
+	env Environment,
+	includeMeta bool,
+	filter map[string]bool,
+	wantStatus map[string]bool,
+	wantMeta map[string]any,
+	wantStatusKeys map[string]bool,
+) {
+	t.Helper()
+
+	res, err := env.ResolveProbes(t.Context(), includeMeta, filter)
+	if err != nil {
+		t.Fatalf("ResolveProbes() error = %v", err)
+	}
+
+	if !maps.Equal(res.Status, wantStatus) {
+		t.Fatalf("status = %#v, want %#v", res.Status, wantStatus)
+	}
+
+	if !maps.EqualFunc(res.Meta, wantMeta, func(a any, b any) bool { return a == b }) {
+		t.Fatalf("meta = %#v, want %#v", res.Meta, wantMeta)
+	}
+
+	if len(res.StatusUpdated) != len(wantStatusKeys) {
+		t.Fatalf("statusUpdated len = %d, want %d", len(res.StatusUpdated), len(wantStatusKeys))
+	}
+
+	for key := range wantStatusKeys {
+		if _, ok := res.StatusUpdated[key]; !ok {
+			t.Fatalf("statusUpdated missing key %q in %#v", key, res.StatusUpdated)
+		}
+	}
+}
+
+func assertResolveProbesError(t *testing.T, env Environment, includeMeta bool) {
+	t.Helper()
+
+	_, err := env.ResolveProbes(t.Context(), includeMeta, nil)
+	if err == nil {
+		t.Fatal("ResolveProbes() error = nil, want non-nil")
+	}
+
+	if !errors.Is(err, errProbeFailed) {
+		t.Fatalf("ResolveProbes() error = %v, want wrapped errProbeFailed", err)
 	}
 }
 
@@ -189,11 +212,10 @@ func TestEnvironmentMatchesStatus(t *testing.T) {
 		},
 	}
 
-	//nolint:govet // Keep table field order for readability.
 	tests := []struct {
 		state map[string]bool
-		want  bool
 		name  string
+		want  bool
 	}{
 		{
 			name:  "empty filter matches",
@@ -226,7 +248,7 @@ func TestEnvironmentMatchesStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := env.MatchesStatus(context.Background(), tt.state)
+			got := env.MatchesStatus(t.Context(), tt.state)
 			if got != tt.want {
 				t.Fatalf("MatchesStatus() = %t, want %t", got, tt.want)
 			}

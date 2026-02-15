@@ -1,7 +1,6 @@
 package kube
 
 import (
-	"context"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,7 +10,6 @@ import (
 func TestToNamespace(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	ns := &corev1.Namespace{}
 	ns.Name = "env-test"
 
@@ -32,7 +30,7 @@ func TestToNamespace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := toNamespace(ctx, tt.obj)
+			got := toNamespace(t.Context(), tt.obj)
 			if got != tt.want {
 				t.Fatalf("toNamespace() = %v, want %v", got, tt.want)
 			}

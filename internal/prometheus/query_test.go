@@ -11,11 +11,10 @@ import (
 func TestQueryConfigValidateCases(t *testing.T) {
 	t.Parallel()
 
-	//nolint:govet // Keep test case fields ordered for readability.
 	tests := []struct {
+		name    string
 		cfg     QueryConfig
 		wantErr bool
-		name    string
 	}{
 		{
 			name: "valid single",
@@ -97,10 +96,9 @@ func TestQueryConfigValidateRequiredFields(t *testing.T) {
 		Timeout:  2 * time.Second,
 	}
 
-	//nolint:govet // Keep table field order for readability.
 	tests := []struct {
-		cfg  QueryConfig
 		name string
+		cfg  QueryConfig
 	}{
 		{
 			name: "missing name",
@@ -177,7 +175,7 @@ func TestEnvironmentQueryCacheHitAndRefresh(t *testing.T) {
 	}
 
 	q := &environmentQuery{query: fq, envName: "env", namespace: "ns"}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if _, err := q.Value(ctx); err != nil {
 		t.Fatalf("first Value() error = %v", err)
@@ -225,7 +223,7 @@ func TestEnvironmentQueryTextUsesNumericValueByDefault(t *testing.T) {
 
 	q := &environmentQuery{query: fq, envName: "env", namespace: "ns"}
 
-	got, err := q.Text(context.Background())
+	got, err := q.Text(t.Context())
 	if err != nil {
 		t.Fatalf("Text() error = %v", err)
 	}
@@ -251,17 +249,16 @@ func TestEnvironmentQueryValuePropagatesError(t *testing.T) {
 
 	q := &environmentQuery{query: fq, envName: "env", namespace: "ns"}
 
-	if _, err := q.Value(context.Background()); err == nil {
+	if _, err := q.Value(t.Context()); err == nil {
 		t.Fatal("Value() error = nil, want non-nil")
 	}
 }
 
-//nolint:govet // Layout is irrelevant for this small test helper.
 type testQuerier struct {
 	sample model.Sample
+	err    error
 	cfg    QueryConfig
 	calls  int
-	err    error
 }
 
 func (f *testQuerier) AddEnvironment(_, _ string) (QueryExecutor, error) {

@@ -1,6 +1,3 @@
-//go:build e2e
-// +build e2e
-
 package main
 
 import (
@@ -42,19 +39,22 @@ type e2eListResponse struct {
 	Environments []string `json:"environments"`
 }
 
-//nolint:govet // Field order mirrors API JSON payload structure for test readability.
 type e2eEnvironmentResponse struct {
-	Name      string            `json:"name"`
-	Namespace string            `json:"namespace"`
 	CreatedAt time.Time         `json:"createdAt"`
 	Status    map[string]bool   `json:"status"`
 	URL       map[string]string `json:"url"`
 	Meta      map[string]any    `json:"meta,omitempty"`
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
 }
 
 func TestE2ENamespaceLifecycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping end-to-end test in short mode")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	clientset, err := kube.GetClient()
 	if err != nil {
@@ -67,11 +67,11 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 	}
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
-	waitFor(t, 15*time.Second, e2eWaitInterval, func() bool {
+	waitFor(t, ctx, 15*time.Second, e2eWaitInterval, func() bool {
 		return statusOK(ctx, httpClient, strings.TrimRight(promAddress, "/")+"/api/v1/status/buildinfo")
 	})
 
-	baseURL, httpClient := startE2EService(t, ctx, cancel, promAddress)
+	baseURL, httpClient := startE2EService(t, ctx, promAddress)
 
 	runID := fmt.Sprintf("%d", time.Now().UnixNano())
 	envName := "e2e-" + runID
@@ -87,7 +87,7 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 	})
 
 	t.Cleanup(func() {
-		deleteNamespaceIfExists(t, clientset, namespace)
+		deleteNamespaceIfExists(t, ctx, clientset, namespace)
 	})
 
 	waitForEnvironmentListed(t, ctx, httpClient, baseURL, envName)
@@ -101,7 +101,7 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 			t.Fatalf("filtered environments = %#v, want [%q]", filtered.Environments, envName)
 		}
 
-		waitFor(t, e2eWaitTimeout, e2eWaitInterval, func() bool {
+		waitFor(t, ctx, e2eWaitTimeout, e2eWaitInterval, func() bool {
 			var promFiltered e2eListResponse
 			if err := getJSON(ctx, httpClient, baseURL+"/v1/environment?status=prom_ok", &promFiltered); err != nil {
 				return false
@@ -143,7 +143,7 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 		})
 
 		t.Cleanup(func() {
-			deleteNamespaceIfExists(t, clientset, namespace2)
+			deleteNamespaceIfExists(t, ctx, clientset, namespace2)
 		})
 
 		waitForEnvironmentListed(t, ctx, httpClient, baseURL, envName2)
@@ -158,15 +158,17 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 	})
 
 	t.Run("namespace deletion removes environment", func(t *testing.T) {
-		deleteNamespaceIfExists(t, clientset, namespace)
+		deleteNamespaceIfExists(t, ctx, clientset, namespace)
 		waitForEnvironmentAbsent(t, ctx, httpClient, baseURL, envName)
 	})
 }
 
-func startE2EService(t *testing.T, ctx context.Context, cancel context.CancelFunc, promAddress string) (string, *http.Client) {
+func startE2EService(t *testing.T, ctx context.Context, promAddress string) (string, *http.Client) {
 	t.Helper()
 
-	port := reserveFreePort(t)
+	ctx, cancel := context.WithCancel(ctx)
+
+	port := reserveFreePort(t, ctx)
 	configPath := writeConfigFile(t, promAddress)
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -198,7 +200,7 @@ func startE2EService(t *testing.T, ctx context.Context, cancel context.CancelFun
 		}
 	})
 
-	waitFor(t, 15*time.Second, e2eWaitInterval, func() bool {
+	waitFor(t, ctx, 15*time.Second, e2eWaitInterval, func() bool {
 		return statusOK(ctx, httpClient, baseURL+"/health")
 	})
 
@@ -221,10 +223,10 @@ func createNamespace(t *testing.T, ctx context.Context, clientset *kubernetes.Cl
 	}
 }
 
-func deleteNamespaceIfExists(t *testing.T, clientset *kubernetes.Clientset, namespace string) {
+func deleteNamespaceIfExists(t *testing.T, ctx context.Context, clientset *kubernetes.Clientset, namespace string) {
 	t.Helper()
 
-	err := clientset.CoreV1().Namespaces().Delete(context.Background(), namespace, metav1.DeleteOptions{})
+	err := clientset.CoreV1().Namespaces().Delete(ctx, namespace, metav1.DeleteOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		t.Fatalf("delete namespace %q error = %v", namespace, err)
 	}
@@ -233,7 +235,7 @@ func deleteNamespaceIfExists(t *testing.T, clientset *kubernetes.Clientset, name
 func waitForEnvironmentListed(t *testing.T, ctx context.Context, client *http.Client, baseURL string, envName string) {
 	t.Helper()
 
-	waitFor(t, e2eWaitTimeout, e2eWaitInterval, func() bool {
+	waitFor(t, ctx, e2eWaitTimeout, e2eWaitInterval, func() bool {
 		var list e2eListResponse
 		if err := getJSON(ctx, client, baseURL+"/v1/environment", &list); err != nil {
 			return false
@@ -246,7 +248,7 @@ func waitForEnvironmentListed(t *testing.T, ctx context.Context, client *http.Cl
 func waitForEnvironmentAbsent(t *testing.T, ctx context.Context, client *http.Client, baseURL string, envName string) {
 	t.Helper()
 
-	waitFor(t, e2eWaitTimeout, e2eWaitInterval, func() bool {
+	waitFor(t, ctx, e2eWaitTimeout, e2eWaitInterval, func() bool {
 		var list e2eListResponse
 		if err := getJSON(ctx, client, baseURL+"/v1/environment", &list); err != nil {
 			return false
@@ -267,7 +269,7 @@ func waitForEnvironmentReady(
 	t.Helper()
 
 	var env e2eEnvironmentResponse
-	waitFor(t, e2eWaitTimeout, e2eWaitInterval, func() bool {
+	waitFor(t, ctx, e2eWaitTimeout, e2eWaitInterval, func() bool {
 		if err := getJSON(ctx, client, baseURL+"/v1/environment/"+envName, &env); err != nil {
 			return false
 		}
@@ -278,10 +280,10 @@ func waitForEnvironmentReady(
 	return env
 }
 
-func reserveFreePort(t *testing.T) int {
+func reserveFreePort(t *testing.T, ctx context.Context) int {
 	t.Helper()
 
-	l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("reserve free port: %v", err)
 	}
@@ -308,19 +310,29 @@ func writeConfigFile(t *testing.T, promURL string) string {
 	return path
 }
 
-func waitFor(t *testing.T, timeout time.Duration, interval time.Duration, condition func() bool) {
+func waitFor(t *testing.T, ctx context.Context, timeout time.Duration, interval time.Duration, condition func() bool) {
 	t.Helper()
 
-	deadline := time.Now().Add(timeout)
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	for {
 		if condition() {
 			return
 		}
 
-		if time.Now().After(deadline) {
-			t.Fatalf("timeout after %s waiting for condition", timeout)
+		select {
+		case <-waitCtx.Done():
+			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
+				t.Fatalf("timeout after %s waiting for condition", timeout)
+			}
+
+			t.Fatalf("context done while waiting for condition: %v", ctx.Err())
+		case <-ticker.C:
 		}
-		time.Sleep(interval)
 	}
 }
 
