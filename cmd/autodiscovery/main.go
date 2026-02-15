@@ -57,6 +57,8 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("can not load config: %w", err)
 	}
 
+	logLevel.Set(cfg.LogLevel)
+
 	slog.DebugContext(ctx, "starting autodiscovery service", "args", args)
 
 	slog.DebugContext(ctx, "setting up Kubernetes client")

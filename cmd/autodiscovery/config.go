@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 
@@ -16,6 +17,7 @@ type serviceConfig struct {
 	StatusChecks map[string]*prometheus.QueryConfig
 	Metadata     map[string]*MetadataConfig
 	configFile   string
+	LogLevel     slog.Level
 	MetricsPort  int
 	Port         int
 }
@@ -102,7 +104,7 @@ func parseConfig(args []string) (*serviceConfig, error) {
 	cfg := &serviceConfig{}
 	fs := flag.NewFlagSet("autodiscovery", flag.ContinueOnError)
 
-	fs.TextVar(logLevel, "log-level", logLevel, "Set the logging level (DEBUG, INFO, WARN, ERROR)")
+	fs.TextVar(&cfg.LogLevel, "log-level", slog.LevelInfo, "Set the logging level (DEBUG, INFO, WARN, ERROR)")
 	fs.IntVar(&cfg.MetricsPort, "metrics-port", 0, "Port to expose Prometheus metrics (0 to disable)")
 	fs.IntVar(&cfg.Port, "port", 8080, "Port to run the HTTP server on")
 	fs.StringVar(&cfg.configFile, "config", "", "Path to the configuration file")

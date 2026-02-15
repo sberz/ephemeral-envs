@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,6 +23,9 @@ func TestParseConfigDefaults(t *testing.T) {
 	}
 	if cfg.configFile != "" {
 		t.Fatalf("configFile = %q, want empty", cfg.configFile)
+	}
+	if cfg.LogLevel != slog.LevelInfo {
+		t.Fatalf("LogLevel = %v, want %v", cfg.LogLevel, slog.LevelInfo)
 	}
 }
 
@@ -132,7 +136,7 @@ statusChecks:
 `
 	path := writeTempConfig(t, content)
 
-	cfg, err := parseConfig([]string{"--config", path, "--port", "9090", "--metrics-port", "9100"})
+	cfg, err := parseConfig([]string{"--config", path, "--port", "9090", "--metrics-port", "9100", "--log-level", "DEBUG"})
 	if err != nil {
 		t.Fatalf("parseConfig() error = %v", err)
 	}
@@ -148,6 +152,10 @@ statusChecks:
 	}
 	if _, ok := cfg.StatusChecks["healthy"]; !ok {
 		t.Fatalf("status checks = %#v, want key %q", cfg.StatusChecks, "healthy")
+	}
+
+	if cfg.LogLevel != slog.LevelDebug {
+		t.Fatalf("LogLevel = %v, want %v", cfg.LogLevel, slog.LevelDebug)
 	}
 }
 
