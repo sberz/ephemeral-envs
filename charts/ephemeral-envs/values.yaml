@@ -31,6 +31,9 @@ config:
   prometheus:
     address: ""
     headers: {}
+  ignition: {}
+    # Optional. If omitted, ignition defaults to prometheus.
+    # type: prometheus
   statusChecks: {}
     # active:
     #   query: count(kube_deployment_spec_replicas{namespace="{{.namespace}}"}) or vector(0)
