@@ -57,22 +57,22 @@ For example, to define status checks, you can use the following configuration:
 
 ```yaml
 prometheus:
-	address: http://prometheus.example.local:9090
+    address: http://prometheus.example.local:9090
 statusChecks:
-	healthy:
-		kind: bulk
-		query: min by (namespace) (kube_deployment_status_replicas_ready{namespace=~"env-.+"})
-		matchOn: namespace
-		matchLabel: namespace
-		interval: 30s
-		timeout: 2s
+    healthy:
+        kind: bulk
+        query: min by (namespace) (kube_deployment_status_replicas_ready{namespace=~"env-.+"})
+        matchOn: namespace
+        matchLabel: namespace
+        interval: 30s
+        timeout: 2s
 ```
 
 Alternatively, you can define a static status check using annotations on the namespace. This is useful to create dummy environments or to override the dynamic status check results:
 ```yaml
 metadata:
   annotations:
-	status.envs.sberz.de/active: "true"
+    status.envs.sberz.de/active: "true"
 ```
 
 #### Dynamic Metadata
@@ -81,17 +81,17 @@ In addition to annotations you can expose metadata that is resolved dynamically 
 
 ```yaml
 prometheus:
-	address: http://prometheus.example.local:9090
+    address: http://prometheus.example.local:9090
 metadata:
-	owner:
-		type: string
-		kind: bulk
-		query: sum by (namespace, owner) (kube_namespace_labels{})
-		matchOn: namespace
-		matchLabel: namespace
-		extractLabel: owner
-		interval: 5m
-		timeout: 5s
+    owner:
+        type: string
+        kind: bulk
+        query: sum by (namespace, owner) (kube_namespace_labels{})
+        matchOn: namespace
+        matchLabel: namespace
+        extractLabel: owner
+        interval: 5m
+        timeout: 5s
 ```
 
 Metadata is included when calling `GET /v1/environment/{name}` and can be used by clients to display ownership, lifecycle timestamps, or any other contextual information that is available via Prometheus metrics.
@@ -103,7 +103,7 @@ Ignition handling is configured in the service config:
 
 ```yaml
 ignition:
-	type: prometheus
+    type: prometheus
 ```
 
 If no ignition provider is configured, `prometheus` is used as the default provider.

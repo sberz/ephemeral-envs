@@ -330,7 +330,23 @@ func reserveFreePort(t *testing.T, ctx context.Context) int {
 func writeConfigFile(t *testing.T, promURL string) string {
 	t.Helper()
 
-	content := fmt.Sprintf("prometheus:\n  address: %s\nstatusChecks:\n  prom_ok:\n    kind: single\n    query: vector(1)\n    interval: 2s\n    timeout: 1s\nmetadata:\n  prom_build:\n    type: number\n    kind: single\n    query: vector(7)\n    interval: 2s\n    timeout: 1s\n", promURL)
+	content := fmt.Sprintf(`
+prometheus:
+  address: %s
+statusChecks:
+  prom_ok:
+    kind: single
+    query: vector(1)
+    interval: 2s
+    timeout: 1s
+metadata:
+  prom_build:
+    type: number
+    kind: single
+    query: vector(7)
+    interval: 2s
+    timeout: 1s
+`, promURL)
 
 	path := filepath.Join(t.TempDir(), "e2e-config.yaml")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
