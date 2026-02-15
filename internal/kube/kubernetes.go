@@ -62,7 +62,7 @@ func WatchNamespaceEvents(
 	nsInformer := factory.Core().V1().Namespaces().Informer()
 
 	_, err := nsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			ns := toNamespace(ctx, obj)
 			if ns == nil {
 				return
@@ -75,7 +75,7 @@ func WatchNamespaceEvents(
 				slog.WarnContext(ctx, "onAdd handler is nil, skipping add event", "name", ns.Name)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			oldNs := toNamespace(ctx, oldObj)
 			if oldNs == nil {
 				return
@@ -92,7 +92,7 @@ func WatchNamespaceEvents(
 				slog.WarnContext(ctx, "onUpdate handler is nil, skipping update event", "name", newNs.Name)
 			}
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			ns := toNamespace(ctx, obj)
 			if ns == nil {
 				return
@@ -121,7 +121,7 @@ func WatchNamespaceEvents(
 }
 
 // toNamespace converts the object from the event handler to a *corev1.Namespace.
-func toNamespace(ctx context.Context, obj interface{}) *corev1.Namespace {
+func toNamespace(ctx context.Context, obj any) *corev1.Namespace {
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
 	}

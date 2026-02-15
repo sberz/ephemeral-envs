@@ -218,14 +218,14 @@ func parseStatusFilter(r *http.Request, param string) map[string]bool {
 		return filter
 	}
 
-	for _, f := range strings.Split(query, ",") {
+	for f := range strings.SplitSeq(query, ",") {
 		f = strings.TrimSpace(f)
 		if f == "" {
 			continue
 		}
 
-		if strings.HasPrefix(f, "!") {
-			f = strings.TrimPrefix(f, "!")
+		if after, ok := strings.CutPrefix(f, "!"); ok {
+			f = after
 			f = strings.TrimSpace(f)
 			if f == "" {
 				continue
