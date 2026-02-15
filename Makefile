@@ -22,7 +22,7 @@ lint:
 ## test: run all tests
 .PHONY: test
 test:
-	go test -short -race -v ./...
+	go test -short -race ./...
 
 ## testing/e2e: run e2e tests only (assumes make testing/setup has already been run)
 .PHONY: testing/e2e

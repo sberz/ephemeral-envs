@@ -41,14 +41,13 @@ func NewServerHandler(store *store.Store, ignitionProvider ignition.Provider) ht
 	var handler http.Handler = mux
 	handler = middlewarePanicRecovery(handler)
 	handler = middlewareCORS(handler)
-	handler = middlewareLogging(handler)
+	handler = middlewareLogging(handler, slog.Default())
 
 	return handler
 }
 
 // middlewareLogging logs all incoming requests with their method, path, IP and duration.
-func middlewareLogging(next http.Handler) http.Handler {
-
+func middlewareLogging(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{w, 200}
@@ -56,8 +55,9 @@ func middlewareLogging(next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r)
 
 		duration := time.Since(start)
-		slog.InfoContext(r.Context(), "request completed",
+		logger.InfoContext(r.Context(), "request completed",
 			"method", r.Method,
+			"route", r.Pattern,
 			"path", r.URL.Path,
 			"args", r.URL.Query(),
 			"remote_addr", r.RemoteAddr,
@@ -207,6 +207,7 @@ func handleIgnitionEnvironment(s *store.Store, ignitionProvider ignition.Provide
 			return
 		}
 
+		slog.InfoContext(r.Context(), "triggering ignition for environment", "name", name, "namespace", env.Namespace)
 		err = ignitionProvider.Trigger(r.Context(), ignition.TriggerRequest{
 			Environment: env.Name,
 			Namespace:   env.Namespace,

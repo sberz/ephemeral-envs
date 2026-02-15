@@ -10,7 +10,7 @@ import (
 func TestParseConfigDefaults(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := parseConfig(nil)
+	cfg, err := parseConfig(nil, t.Output())
 	if err != nil {
 		t.Fatalf("parseConfig() error = %v", err)
 	}
@@ -97,7 +97,7 @@ statusChecks:
 func TestParseConfigInvalidArgs(t *testing.T) {
 	t.Parallel()
 
-	if _, err := parseConfig([]string{"--unknown-flag"}); err == nil {
+	if _, err := parseConfig([]string{"--unknown-flag"}, t.Output()); err == nil {
 		t.Fatal("parseConfig() error = nil, want non-nil")
 	}
 }
@@ -136,7 +136,7 @@ statusChecks:
 `
 	path := writeTempConfig(t, content)
 
-	cfg, err := parseConfig([]string{"--config", path, "--port", "9090", "--metrics-port", "9100", "--log-level", "DEBUG"})
+	cfg, err := parseConfig([]string{"--config", path, "--port", "9090", "--metrics-port", "9100", "--log-level", "DEBUG"}, t.Output())
 	if err != nil {
 		t.Fatalf("parseConfig() error = %v", err)
 	}

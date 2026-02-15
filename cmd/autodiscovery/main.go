@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -37,22 +38,24 @@ var (
 
 func main() {
 	ctx := context.Background()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: false,
-		Level:     logLevel,
-	})))
 
-	if err := run(ctx, os.Args[1:]); err != nil {
+	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		slog.ErrorContext(ctx, "failed to run autodiscovery", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	logger := slog.New(slog.NewJSONHandler(stdout, &slog.HandlerOptions{
+		AddSource: false,
+		Level:     logLevel,
+	}))
+	slog.SetDefault(logger)
+
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	cfg, err := parseConfig(args)
+	cfg, err := parseConfig(args, stderr)
 	if err != nil {
 		return fmt.Errorf("can not load config: %w", err)
 	}
@@ -101,10 +104,12 @@ func run(ctx context.Context, args []string) error {
 
 	// Start the HTTP server
 	slog.DebugContext(ctx, "starting HTTP server", "port", cfg.Port)
+	errLogger := slog.NewLogLogger(logger.Handler(), slog.LevelError)
 
 	server := http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      NewServerHandler(envStore, ignitionProvider),
+		ErrorLog:     errLogger,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -126,6 +131,7 @@ func run(ctx context.Context, args []string) error {
 		metricsServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", cfg.MetricsPort),
 			Handler:      metricsMux,
+			ErrorLog:     errLogger,
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		}

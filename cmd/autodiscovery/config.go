@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"regexp"
@@ -107,9 +108,10 @@ func parseConfigFile(path string) (*configFile, error) {
 	return cfg, nil
 }
 
-func parseConfig(args []string) (*serviceConfig, error) {
+func parseConfig(args []string, stderr io.Writer) (*serviceConfig, error) {
 	cfg := &serviceConfig{}
 	fs := flag.NewFlagSet("autodiscovery", flag.ContinueOnError)
+	fs.SetOutput(stderr)
 
 	fs.TextVar(&cfg.LogLevel, "log-level", slog.LevelInfo, "Set the logging level (DEBUG, INFO, WARN, ERROR)")
 	fs.IntVar(&cfg.MetricsPort, "metrics-port", 0, "Port to expose Prometheus metrics (0 to disable)")

@@ -197,18 +197,13 @@ func startE2EService(t *testing.T, ctx context.Context, promAddress string) (str
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	errCh := make(chan error, 1)
 
-	logLevel := "warn"
-	if testing.Verbose() {
-		logLevel = "debug"
-	}
-
 	go func() {
 		errCh <- run(ctx, []string{
-			"--log-level=" + logLevel,
+			"--log-level=warn",
 			"--port", strconv.Itoa(port),
 			"--metrics-port", strconv.Itoa(metricsPort),
 			"--config", configPath,
-		})
+		}, t.Output(), t.Output())
 	}()
 
 	t.Cleanup(func() {
