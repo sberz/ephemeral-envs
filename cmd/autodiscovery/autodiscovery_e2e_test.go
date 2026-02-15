@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -61,17 +62,14 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 		t.Fatalf("GetClient() error = %v", err)
 	}
 
-	promAddress := os.Getenv("E2E_PROMETHEUS_ADDRESS")
-	if promAddress == "" {
-		promAddress = defaultPrometheusAddress
-	}
+	promAddress := resolvePrometheusAddress()
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	waitFor(t, ctx, 15*time.Second, e2eWaitInterval, func() bool {
 		return statusOK(ctx, httpClient, strings.TrimRight(promAddress, "/")+"/api/v1/status/buildinfo")
 	})
 
-	baseURL, httpClient := startE2EService(t, ctx, promAddress)
+	baseURL, metricsURL, httpClient := startE2EService(t, ctx, promAddress)
 
 	runID := fmt.Sprintf("%d", time.Now().UnixNano())
 	envName := "e2e-" + runID
@@ -130,6 +128,28 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("ignition endpoint accepts and updates metric", func(t *testing.T) {
+		if err := requestStatus(ctx, httpClient, http.MethodPost, baseURL+"/v1/environment/"+envName+"/ignition", http.StatusAccepted); err != nil {
+			t.Fatalf("ignition trigger request error = %v", err)
+		}
+
+		waitFor(t, ctx, e2eWaitTimeout, e2eWaitInterval, func() bool {
+			metrics, err := getText(ctx, httpClient, metricsURL+"/metrics")
+			if err != nil {
+				return false
+			}
+
+			hasRequestedAt := strings.Contains(metrics, fmt.Sprintf(`ephemeralenv_last_ignition_requested{environment=%q,namespace=%q}`, envName, namespace))
+			hasTriggerCount := strings.Contains(metrics, fmt.Sprintf(`ephemeralenv_ignition_triggers_total{environment=%q,namespace=%q,provider="prometheus",status="accepted"} 1`, envName, namespace))
+
+			return hasRequestedAt && hasTriggerCount
+		})
+
+		if err := requestStatus(ctx, httpClient, http.MethodPost, baseURL+"/v1/environment/missing-ignition/ignition", http.StatusNotFound); err != nil {
+			t.Fatalf("ignition trigger missing environment request error = %v", err)
+		}
+	})
+
 	t.Run("unsupported metadata json falls back to literal string", func(t *testing.T) {
 		runID2 := fmt.Sprintf("%d", time.Now().UnixNano())
 		envName2 := "e2e-invalid-meta-" + runID2
@@ -163,15 +183,17 @@ func TestE2ENamespaceLifecycle(t *testing.T) {
 	})
 }
 
-func startE2EService(t *testing.T, ctx context.Context, promAddress string) (string, *http.Client) {
+func startE2EService(t *testing.T, ctx context.Context, promAddress string) (string, string, *http.Client) {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(ctx)
 
 	port := reserveFreePort(t, ctx)
+	metricsPort := reserveFreePort(t, ctx)
 	configPath := writeConfigFile(t, promAddress)
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	metricsURL := fmt.Sprintf("http://127.0.0.1:%d", metricsPort)
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	errCh := make(chan error, 1)
 
@@ -184,6 +206,7 @@ func startE2EService(t *testing.T, ctx context.Context, promAddress string) (str
 		errCh <- run(ctx, []string{
 			"--log-level=" + logLevel,
 			"--port", strconv.Itoa(port),
+			"--metrics-port", strconv.Itoa(metricsPort),
 			"--config", configPath,
 		})
 	}()
@@ -203,8 +226,20 @@ func startE2EService(t *testing.T, ctx context.Context, promAddress string) (str
 	waitFor(t, ctx, 15*time.Second, e2eWaitInterval, func() bool {
 		return statusOK(ctx, httpClient, baseURL+"/health")
 	})
+	waitFor(t, ctx, 15*time.Second, e2eWaitInterval, func() bool {
+		return statusOK(ctx, httpClient, metricsURL+"/metrics")
+	})
 
-	return baseURL, httpClient
+	return baseURL, metricsURL, httpClient
+}
+
+func resolvePrometheusAddress() string {
+	promAddress := os.Getenv("E2E_PROMETHEUS_ADDRESS")
+	if promAddress == "" {
+		return defaultPrometheusAddress
+	}
+
+	return promAddress
 }
 
 func createNamespace(t *testing.T, ctx context.Context, clientset *kubernetes.Clientset, namespace string, envName string, annotations map[string]string) {
@@ -337,42 +372,17 @@ func waitFor(t *testing.T, ctx context.Context, timeout time.Duration, interval 
 }
 
 func statusOK(ctx context.Context, client *http.Client, url string) bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return false
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
+	_, err := requestBody(ctx, client, http.MethodGet, url, http.StatusOK)
+	return err == nil
 }
 
 func getJSON(ctx context.Context, client *http.Client, url string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	body, err := requestBody(ctx, client, http.MethodGet, url, http.StatusOK)
 	if err != nil {
-		return fmt.Errorf("new request: %w", err)
+		return err
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("do request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("%w: status=%d", errors.Join(errUnexpectedHTTPStatus, readErr), resp.StatusCode)
-		}
-
-		return fmt.Errorf("%w: status=%d body=%s", errUnexpectedHTTPStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	dec := json.NewDecoder(resp.Body)
+	dec := json.NewDecoder(bytes.NewReader(body))
 	if err := dec.Decode(out); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
@@ -382,4 +392,42 @@ func getJSON(ctx context.Context, client *http.Client, url string, out any) erro
 	}
 
 	return nil
+}
+
+func requestStatus(ctx context.Context, client *http.Client, method string, url string, wantStatus int) error {
+	_, err := requestBody(ctx, client, method, url, wantStatus)
+	return err
+}
+
+func getText(ctx context.Context, client *http.Client, url string) (string, error) {
+	body, err := requestBody(ctx, client, http.MethodGet, url, http.StatusOK)
+	if err != nil {
+		return "", err
+	}
+
+	return string(body), nil
+}
+
+func requestBody(ctx context.Context, client *http.Client, method string, url string, wantStatus int) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("new request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != wantStatus {
+		return nil, fmt.Errorf("%w: status=%d want=%d body=%s", errUnexpectedHTTPStatus, resp.StatusCode, wantStatus, strings.TrimSpace(string(body)))
+	}
+
+	return body, nil
 }

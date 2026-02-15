@@ -159,6 +159,74 @@ statusChecks:
 	}
 }
 
+func TestParseConfigFileIgnition(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		check   func(t *testing.T, cfg *configFile)
+		content string
+		wantErr bool
+	}{
+		"loads explicit prometheus ignition provider": {
+			content: `ignition:
+  type: prometheus
+`,
+			check: func(t *testing.T, cfg *configFile) {
+				t.Helper()
+				if cfg.Ignition == nil {
+					t.Fatal("ignition = nil, want config")
+				}
+				if cfg.Ignition.Type != "prometheus" {
+					t.Fatalf("ignition.type = %q, want %q", cfg.Ignition.Type, "prometheus")
+				}
+			},
+		},
+		"allows empty ignition config": {
+			content: `ignition:
+  {}
+`,
+			check: func(t *testing.T, cfg *configFile) {
+				t.Helper()
+				if cfg.Ignition == nil {
+					t.Fatal("ignition = nil, want config")
+				}
+				if !cfg.Ignition.IsZero() {
+					t.Fatalf("ignition = %#v, want zero config", cfg.Ignition)
+				}
+			},
+		},
+		"rejects invalid ignition provider type": {
+			content: `ignition:
+  type: unknown
+`,
+			wantErr: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeTempConfig(t, tt.content)
+			cfg, err := parseConfigFile(path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("parseConfigFile() error = nil, want non-nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("parseConfigFile() error = %v", err)
+			}
+
+			if tt.check != nil {
+				tt.check(t, cfg)
+			}
+		})
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 

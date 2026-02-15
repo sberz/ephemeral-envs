@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sberz/ephemeral-envs/internal/ignition"
 	"github.com/sberz/ephemeral-envs/internal/probe"
 	"github.com/sberz/ephemeral-envs/internal/prometheus"
 )
@@ -16,6 +17,7 @@ type serviceConfig struct {
 	Prometheus   prometheus.Config
 	StatusChecks map[string]*prometheus.QueryConfig
 	Metadata     map[string]*MetadataConfig
+	Ignition     *ignition.ProviderConfig
 	configFile   string
 	LogLevel     slog.Level
 	MetricsPort  int
@@ -23,6 +25,7 @@ type serviceConfig struct {
 }
 
 type configFile struct {
+	Ignition     *ignition.ProviderConfig           `yaml:"ignition"`
 	StatusChecks map[string]*prometheus.QueryConfig `yaml:"statusChecks"`
 	Metadata     map[string]*MetadataConfig         `yaml:"metadata"`
 	Prometheus   prometheus.Config                  `yaml:"prometheus"`
@@ -77,6 +80,10 @@ func (c *configFile) validate() error {
 			return fmt.Errorf("metadata.%s: %w", name, err)
 		}
 	}
+
+	if err := c.Ignition.Validate(); err != nil {
+		return fmt.Errorf("ignition: %w", err)
+	}
 	return nil
 }
 
@@ -122,6 +129,7 @@ func parseConfig(args []string) (*serviceConfig, error) {
 		cfg.Prometheus = cfgFile.Prometheus
 		cfg.StatusChecks = cfgFile.StatusChecks
 		cfg.Metadata = cfgFile.Metadata
+		cfg.Ignition = cfgFile.Ignition
 	}
 
 	return cfg, nil

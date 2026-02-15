@@ -41,6 +41,7 @@ The API endpoints are:
 - `GET /v1/environment/all`: Get details about all ephemeral environments.
 	- Optional query parameters:
 		- `withStatus`: Comma-separated list of status checks to include in the response (e.g. `withStatus=active`).
+- `POST /v1/environment/{name}/ignition`: Trigger ignition handling for an environment. Returns `202 Accepted` if the trigger is accepted.
 
 ### Defining Ephemeral Environments
 
@@ -94,6 +95,23 @@ metadata:
 ```
 
 Metadata is included when calling `GET /v1/environment/{name}` and can be used by clients to display ownership, lifecycle timestamps, or any other contextual information that is available via Prometheus metrics.
+
+#### Ignition Triggers
+
+The ignition endpoint can be used to trigger a wake-up action for environments that have scaled down due to inactivity.
+Ignition handling is configured in the service config:
+
+```yaml
+ignition:
+	type: prometheus
+```
+
+If no ignition provider is configured, `prometheus` is used as the default provider.
+
+Only the `prometheus` ignition provider is currently supported. Ignition requests emit two internal metrics:
+
+- `ephemeralenv_ignition_triggers_total{provider,environment,namespace,status}` is incremented for every ignition trigger attempt.
+- `ephemeralenv_last_ignition_requested{environment,namespace}` stores the Unix timestamp of the latest successful ignition trigger for the prometheus provider.
 
 #### Example
 

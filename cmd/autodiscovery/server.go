@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sberz/ephemeral-envs/internal/ignition"
 	"github.com/sberz/ephemeral-envs/internal/store"
 )
 
@@ -27,13 +28,14 @@ func (sr *statusRecorder) WriteHeader(code int) {
 	sr.ResponseWriter.WriteHeader(code)
 }
 
-func NewServerHandler(store *store.Store) http.Handler {
+func NewServerHandler(store *store.Store, ignitionProvider ignition.Provider) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /health", handleHealthCheck())
 	mux.Handle("GET /v1/environment", handleListEnvironmentNames(store))
 	mux.Handle("GET /v1/environment/all", handleGetAllEnvironments(store))
 	mux.Handle("GET /v1/environment/{name}", handleGetEnvironment(store))
+	mux.Handle("POST /v1/environment/{name}/ignition", handleIgnitionEnvironment(store, ignitionProvider))
 
 	// Register Middleware for logging
 	var handler http.Handler = mux
@@ -187,6 +189,35 @@ func handleGetAllEnvironments(s *store.Store) http.Handler {
 		}
 
 		mustEncodeResponse(w, r, http.StatusOK, response{Environments: res})
+	})
+}
+
+func handleIgnitionEnvironment(s *store.Store, ignitionProvider ignition.Provider) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+
+		env, err := s.GetEnvironment(r.Context(), name)
+		if err != nil {
+			if errors.Is(err, store.ErrEnvironmentNotFound) {
+				http.Error(w, "Environment Not Found", http.StatusNotFound)
+			} else {
+				slog.ErrorContext(r.Context(), "failed to get environment", "error", err, "name", name)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		err = ignitionProvider.Trigger(r.Context(), ignition.TriggerRequest{
+			Environment: env.Name,
+			Namespace:   env.Namespace,
+		})
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to trigger ignition", "error", err, "name", name, "namespace", env.Namespace)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusAccepted)
 	})
 }
 

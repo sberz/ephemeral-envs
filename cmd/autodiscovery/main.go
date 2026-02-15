@@ -78,6 +78,11 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to set up probers: %w", err)
 	}
 
+	ignitionProvider, err := setupIgnitionProvider(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to set up ignition provider: %w", err)
+	}
+
 	slog.DebugContext(ctx, "watching namespace events")
 	controller := NewEventHandler(ctx, envStore, statusChecks, metadataProbers)
 	err = kube.WatchNamespaceEvents(
@@ -99,7 +104,7 @@ func run(ctx context.Context, args []string) error {
 
 	server := http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      NewServerHandler(envStore),
+		Handler:      NewServerHandler(envStore, ignitionProvider),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}

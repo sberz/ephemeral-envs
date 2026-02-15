@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sberz/ephemeral-envs/internal/ignition"
 	"github.com/sberz/ephemeral-envs/internal/probe"
 	"github.com/sberz/ephemeral-envs/internal/store"
 )
@@ -123,6 +124,62 @@ func TestHandleGetEnvironmentOK(t *testing.T) {
 
 	if got.Meta["owner"] != "team-platform" {
 		t.Fatalf("meta.owner = %#v, want %q", got.Meta["owner"], "team-platform")
+	}
+}
+
+func TestHandleIgnitionEnvironmentAccepted(t *testing.T) {
+	t.Parallel()
+
+	s := newTestStoreWithEnvironments(t, newTestEnvironment("test", "env-test", true, false))
+	provider := &testIgnitionProvider{}
+	mux := http.NewServeMux()
+	mux.Handle("POST /v1/environment/{name}/ignition", handleIgnitionEnvironment(s, provider))
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/environment/test/ignition", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusAccepted)
+	}
+
+	if provider.request.Environment != "test" {
+		t.Fatalf("request.environment = %q, want %q", provider.request.Environment, "test")
+	}
+
+	if provider.request.Namespace != "env-test" {
+		t.Fatalf("request.namespace = %q, want %q", provider.request.Namespace, "env-test")
+	}
+}
+
+func TestHandleIgnitionEnvironmentNotFound(t *testing.T) {
+	t.Parallel()
+
+	s := store.NewStore()
+	h := handleIgnitionEnvironment(s, &testIgnitionProvider{})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/environment/missing/ignition", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleIgnitionEnvironmentProviderError(t *testing.T) {
+	t.Parallel()
+
+	s := newTestStoreWithEnvironments(t, newTestEnvironment("test", "env-test", true, false))
+	mux := http.NewServeMux()
+	mux.Handle("POST /v1/environment/{name}/ignition", handleIgnitionEnvironment(s, &testIgnitionProvider{err: errTestProbeFailed}))
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/environment/test/ignition", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
 
@@ -386,7 +443,7 @@ func TestHandleHealthCheck(t *testing.T) {
 func TestNewServerHandlerRoutingAndMiddleware(t *testing.T) {
 	t.Parallel()
 
-	h := NewServerHandler(newTestStoreWithEnvironments(t, newTestEnvironment("a", "env-a", true, false)))
+	h := NewServerHandler(newTestStoreWithEnvironments(t, newTestEnvironment("a", "env-a", true, false)), &testIgnitionProvider{})
 
 	preflight := httptest.NewRequest(http.MethodOptions, "/v1/environment", nil)
 	preflightRec := httptest.NewRecorder()
@@ -416,6 +473,14 @@ func TestNewServerHandlerRoutingAndMiddleware(t *testing.T) {
 
 	if envRec.Code != http.StatusOK {
 		t.Fatalf("env status = %d, want %d", envRec.Code, http.StatusOK)
+	}
+
+	startReq := httptest.NewRequest(http.MethodPost, "/v1/environment/a/ignition", nil)
+	startRec := httptest.NewRecorder()
+	h.ServeHTTP(startRec, startReq)
+
+	if startRec.Code != http.StatusAccepted {
+		t.Fatalf("ignition status = %d, want %d", startRec.Code, http.StatusAccepted)
 	}
 }
 
@@ -470,4 +535,14 @@ func (f failingMetadataProbe) Value(_ context.Context) (any, error) {
 
 func (f failingMetadataProbe) LastUpdate() time.Time {
 	return time.Time{}
+}
+
+type testIgnitionProvider struct {
+	err     error
+	request ignition.TriggerRequest
+}
+
+func (p *testIgnitionProvider) Trigger(_ context.Context, req ignition.TriggerRequest) error {
+	p.request = req
+	return p.err
 }
