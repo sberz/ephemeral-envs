@@ -183,9 +183,10 @@ This will expose Prometheus metrics at `http://localhost:8090/metrics`.
 ## Development
 
 To run the service locally for development, you need a Kubernetes cluster (e.g. kind, minikube, etc.) and `kubectl` configured to access it.
+There are a few Makefile targets to help with development
 
-There are a few Makefile targets to help with development. To get started quickly, you can use:
 
+### Initial Setup
 ```bash
 # Creates a local kubernetes cluster using kind and podman
 make testing/setup
@@ -193,17 +194,29 @@ make testing/setup
 # Sets the kubeconfig to the kind cluster. This is needed for the service to access the cluster.
 export KUBECONFIG="$(realpath ./kind-kubeconfig.yaml)"
 
-# Apply the example manifests to the cluster
-kubectl apply -f examples/basic/manifests
-
-# Run the service locally
-go run ./cmd/autodiscovery --log-level debug
-
-# Cleanup the kind cluster
-make testing/teardown
+# Apply example manifests to the cluster
+make testing/examples
 ```
 
-To run the helm chart with the service in the cluster, you can use:
+### Run and test the service locally
+```bash
+# Run the linter (it will auto-fix some issues)
+make lint
+
+# Run unit and integration tests
+make test
+
+# Run e2e tests (assumes make testing/setup has already been run)
+make testing/e2e
+
+# Run the service locally
+go run ./cmd/autodiscovery \
+	--log-level debug \
+	--metrics-port 8090 \
+	--config examples/statuschecks/config.yaml
+```
+
+### Install the service in the local cluster using the helm chart
 ```bash
 make testing/install-helm
 ```

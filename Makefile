@@ -17,7 +17,7 @@ build:
 .PHONY: lint
 lint:
 	@echo "Running linters..."
-	golangci-lint run ./...
+	golangci-lint run --fix ./...
 
 ## test: run all tests
 .PHONY: test
