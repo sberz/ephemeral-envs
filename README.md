@@ -231,7 +231,7 @@ make testing/e2e
 go run ./cmd/autodiscovery \
 	--log-level debug \
 	--metrics-port 8090 \
-	--config examples/statuschecks/config.yaml
+	--config examples/config.yaml
 ```
 
 ### Install the service in the local cluster using the helm chart

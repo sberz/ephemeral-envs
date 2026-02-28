@@ -24,6 +24,14 @@ log_fatal() {
 	exit 1
 }
 
+# Prefix command output with a label (e.g., [KEDA], [GATEWAY], [PROMETHEUS]) for better readability
+prefix_pipe () {
+	local prefix="$1"
+	while IFS= read -r line; do
+		echo -e "\033[0;90m[${prefix}]\033[0m $line"
+	done
+}
+
 print_usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
@@ -58,15 +66,19 @@ check_cluster_exists() {
 
 setup_cluster() {
 	log_info "Setting up kind cluster for testing..."
-	cat <<-EOF | kind create cluster --name "${KIND_CLUSTER_NAME}" --kubeconfig "${KIND_KUBECONFIG}" --config=-
-		kind: Cluster
-		apiVersion: kind.x-k8s.io/v1alpha4
-		nodes:
-		  - role: control-plane
-		    extraPortMappings:
-		      - containerPort: 31080
-		        hostPort: ${INGRESS_PORT}
-		EOF
+
+	kind create cluster \
+		--name "${KIND_CLUSTER_NAME}" \
+		--kubeconfig "${KIND_KUBECONFIG}" \
+		--config=- <<-EOF | prefix_pipe "CLUSTER"
+			kind: Cluster
+			apiVersion: kind.x-k8s.io/v1alpha4
+			nodes:
+			  - role: control-plane
+			    extraPortMappings:
+			      - containerPort: 31080
+			        hostPort: ${INGRESS_PORT}
+			EOF
 
 	log_info "Cluster created. Kubeconfig is available at ${KIND_KUBECONFIG}."
 }
@@ -77,18 +89,31 @@ teardown_cluster() {
 	log_info "Cluster ${KIND_CLUSTER_NAME} has been deleted."
 }
 
-install_gateway() {
+install_keda() {
+	log_info "Installing KEDA..."
+
+	helm upgrade --install keda keda \
+		--repo https://kedacore.github.io/charts \
+		--namespace keda --create-namespace --wait \
+		| prefix_pipe "KEDA"
+
+	log_info "KEDA installed."
+}
+
+install_gateway_crd() {
 	log_info "Installing Gateway API CRDs..."
-
-	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml
-
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml \
+		| prefix_pipe "GATEWAY-CRD"
 	log_info "Gateway API CRDs installed."
+}
+
+install_gateway() {
 	log_info "Installing Traefik Gateway Controller..."
 
 	helm upgrade --install traefik \
 		traefik --repo https://helm.traefik.io/traefik \
 		--namespace traefik --create-namespace --wait \
-		--values=- <<-EOF
+		--values=- <<-EOF | prefix_pipe "GATEWAY"
 			ingressRoute:
 			  dashboard:
 			    enabled: true
@@ -114,25 +139,13 @@ install_gateway() {
 	log_info "Traefik Dashboard available at http://traefik.env-test.localhost:${INGRESS_PORT}"
 }
 
-install_ingress_controller() {
-	log_info "Installing NGINX Ingress Controller..."
-
-	helm upgrade --install ingress-nginx \
-		ingress-nginx --repo https://kubernetes.github.io/ingress-nginx \
-		--namespace ingress-nginx --create-namespace --wait \
-		--set controller.service.type=NodePort \
-		--set controller.service.nodePorts.http=31080
-
-	log_info "NGINX Ingress Controller installed."
-}
-
 install_prometheus() {
 	log_info "Installing Prometheus..."
 
 	helm upgrade --install kube-prometheus-stack \
 		oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
 		--namespace monitoring --create-namespace --wait \
-		--values=- <<-EOF
+		--values=- <<-EOF | prefix_pipe "PROMETHEUS"
 			prometheus:
 			  prometheusSpec:
 			    serviceMonitorSelectorNilUsesHelmValues: false
@@ -220,8 +233,11 @@ case $cmd in
 		;;
 	setup-cluster)
 		check_cluster_exists || setup_cluster
-		install_gateway
-		install_prometheus
+		install_gateway_crd
+		install_gateway &
+		install_keda &
+		install_prometheus &
+		wait
 		;;
 	setup-minimal)
 		check_cluster_exists || setup_cluster
