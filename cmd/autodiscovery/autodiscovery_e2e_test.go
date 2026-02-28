@@ -425,6 +425,7 @@ func requestBody(ctx context.Context, client *http.Client, method string, url st
 		return nil, fmt.Errorf("new request: %w", err)
 	}
 
+	//nolint:gosec // No SSRF here, everything is localhost and controlled by the test
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
