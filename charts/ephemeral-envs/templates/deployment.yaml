@@ -15,7 +15,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ toYaml .Values.config | sha256sum }}
-        {{- if .Values.metrics.enabled }}
+        {{- if and .Values.metrics.enabled (not .Values.serviceMonitor.enabled) }}
         prometheus.io/scrape: "true"
         prometheus.io/port: "{{ .Values.metrics.port }}"
         prometheus.io/path: "/metrics"
