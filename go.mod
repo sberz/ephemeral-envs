@@ -1,6 +1,6 @@
 module github.com/sberz/ephemeral-envs
 
-toolchain go1.26.0
+toolchain go1.26.1
 
 go 1.25.0
 
@@ -8,9 +8,9 @@ require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common v0.67.5
-	k8s.io/api v0.35.1
-	k8s.io/apimachinery v0.35.1
-	k8s.io/client-go v0.35.1
+	k8s.io/api v0.35.2
+	k8s.io/apimachinery v0.35.2
+	k8s.io/client-go v0.35.2
 )
 
 require (
