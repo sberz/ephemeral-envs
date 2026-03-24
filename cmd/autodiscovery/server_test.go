@@ -71,7 +71,7 @@ func TestParseStatusFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.url, nil)
 			got := parseStatusFilter(req, tt.param)
 
 			if !maps.Equal(got, tt.want) {
@@ -88,7 +88,7 @@ func TestHandleGetEnvironmentNotFound(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/environment/{name}", handleGetEnvironment(s))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment/missing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment/missing", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -105,7 +105,7 @@ func TestHandleGetEnvironmentOK(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/environment/{name}", handleGetEnvironment(s))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment/test", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -135,7 +135,7 @@ func TestHandleIgnitionEnvironmentAccepted(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("POST /v1/environment/{name}/ignition", handleIgnitionEnvironment(s, provider))
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/environment/test/ignition", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/environment/test/ignition", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -158,7 +158,7 @@ func TestHandleIgnitionEnvironmentNotFound(t *testing.T) {
 	s := store.NewStore()
 	h := handleIgnitionEnvironment(s, &testIgnitionProvider{})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/environment/missing/ignition", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/environment/missing/ignition", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -174,7 +174,7 @@ func TestHandleIgnitionEnvironmentProviderError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("POST /v1/environment/{name}/ignition", handleIgnitionEnvironment(s, &testIgnitionProvider{err: errTestProbeFailed}))
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/environment/test/ignition", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/environment/test/ignition", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -197,7 +197,7 @@ func TestHandleGetAllEnvironmentsWithStatusFilter(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/environment/all", handleGetAllEnvironments(s))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment/all?withStatus=healthy", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment/all?withStatus=healthy", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -240,7 +240,7 @@ func TestHandleListEnvironmentNamesByNamespaceAndStatus(t *testing.T) {
 
 	h := handleListEnvironmentNames(s)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment?namespace=env-a&status=healthy", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment?namespace=env-a&status=healthy", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -267,7 +267,7 @@ func TestHandleListEnvironmentNamesByNamespaceNotFound(t *testing.T) {
 
 	h := handleListEnvironmentNames(s)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment?namespace=env-missing", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment?namespace=env-missing", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -306,7 +306,7 @@ func TestHandleGetEnvironmentStatusProbeError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/environment/{name}", handleGetEnvironment(s))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment/broken-status", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment/broken-status", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -336,7 +336,7 @@ func TestHandleGetEnvironmentMetadataProbeError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/environment/{name}", handleGetEnvironment(s))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment/broken-meta", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment/broken-meta", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -364,7 +364,7 @@ func TestHandleGetAllEnvironmentsStatusProbeError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/environment/all", handleGetAllEnvironments(s))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment/all?withStatus=healthy", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment/all?withStatus=healthy", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -381,7 +381,7 @@ func TestMiddlewareCORSPreflight(t *testing.T) {
 		nextCalled = true
 	}))
 
-	req := httptest.NewRequest(http.MethodOptions, "/v1/environment", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/v1/environment", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -405,7 +405,7 @@ func TestMiddlewarePanicRecovery(t *testing.T) {
 		panic("boom")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/environment", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -417,7 +417,7 @@ func TestMiddlewarePanicRecovery(t *testing.T) {
 func TestHandleHealthCheck(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 
 	handleHealthCheck().ServeHTTP(rec, req)
@@ -445,7 +445,7 @@ func TestNewServerHandlerRoutingAndMiddleware(t *testing.T) {
 
 	h := NewServerHandler(newTestStoreWithEnvironments(t, newTestEnvironment("a", "env-a", true, false)), &testIgnitionProvider{})
 
-	preflight := httptest.NewRequest(http.MethodOptions, "/v1/environment", nil)
+	preflight := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/v1/environment", nil)
 	preflightRec := httptest.NewRecorder()
 	h.ServeHTTP(preflightRec, preflight)
 
@@ -456,7 +456,7 @@ func TestNewServerHandlerRoutingAndMiddleware(t *testing.T) {
 		t.Fatalf("preflight cors header = %q, want *", preflightRec.Header().Get("Access-Control-Allow-Origin"))
 	}
 
-	healthReq := httptest.NewRequest(http.MethodGet, "/health", nil)
+	healthReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil)
 	healthRec := httptest.NewRecorder()
 	h.ServeHTTP(healthRec, healthReq)
 
@@ -467,7 +467,7 @@ func TestNewServerHandlerRoutingAndMiddleware(t *testing.T) {
 		t.Fatalf("health cors header = %q, want *", healthRec.Header().Get("Access-Control-Allow-Origin"))
 	}
 
-	envReq := httptest.NewRequest(http.MethodGet, "/v1/environment/a", nil)
+	envReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/environment/a", nil)
 	envRec := httptest.NewRecorder()
 	h.ServeHTTP(envRec, envReq)
 
@@ -475,7 +475,7 @@ func TestNewServerHandlerRoutingAndMiddleware(t *testing.T) {
 		t.Fatalf("env status = %d, want %d", envRec.Code, http.StatusOK)
 	}
 
-	startReq := httptest.NewRequest(http.MethodPost, "/v1/environment/a/ignition", nil)
+	startReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/environment/a/ignition", nil)
 	startRec := httptest.NewRecorder()
 	h.ServeHTTP(startRec, startReq)
 
