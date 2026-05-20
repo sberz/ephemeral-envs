@@ -101,7 +101,7 @@ install_keda() {
 
 install_gateway_crd() {
 	log_info "Installing Gateway API CRDs..."
-	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml |
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml |
 		prefix_pipe "GATEWAY-CRD"
 	log_info "Gateway API CRDs installed."
 }
@@ -131,7 +131,8 @@ install_gateway() {
 			  web:
 			    nodePort: 31080
 			service:
-			  type: NodePort
+			  spec:
+			    type: NodePort
 		EOF
 
 	log_info "Traefik Gateway Controller installed."

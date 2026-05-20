@@ -68,6 +68,8 @@ linters:
     errcheck:
       check-type-assertions: true
       check-blank: false
+    goconst:
+      ignore-tests: true
     govet:
       enable-all: true
     nilnil:
