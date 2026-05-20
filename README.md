@@ -33,14 +33,14 @@ Once the service is running, you can access the REST API to list and get details
 The API endpoints are:
 
 - `GET /v1/environment`: List all ephemeral environment names.
-    - Optional query parameters:
-        - `namespace`: Filter by namespace.
-        - `status`: Filter by status of status checks (e.g. `status=healthy`). Can be negated with `status=!healthy`. Multiple status checks can be combined with commas (e.g. `status=active,!healthy`).
+  - Optional query parameters:
+    - `namespace`: Filter by namespace.
+    - `status`: Filter by status of status checks (e.g. `status=healthy`). Can be negated with `status=!healthy`. Multiple status checks can be combined with commas (e.g. `status=active,!healthy`).
 
 - `GET /v1/environment/{name}`: Get details about a specific ephemeral environment.
 - `GET /v1/environment/all`: Get details about all ephemeral environments.
-	- Optional query parameters:
-		- `withStatus`: Comma-separated list of status checks to include in the response (e.g. `withStatus=active`).
+  - Optional query parameters:
+    - `withStatus`: Comma-separated list of status checks to include in the response (e.g. `withStatus=active`).
 - `POST /v1/environment/{name}/ignition`: Trigger ignition handling for an environment. Returns `202 Accepted` if the trigger is accepted.
 
 ### Defining Ephemeral Environments
@@ -52,23 +52,25 @@ Add annotations to provide additional information about the environment:
 - Annotation `url.envs.sberz.de/<endpoint-name>: <url>`: Define URLs for different endpoints (e.g., API, dashboard, etc.).
 
 #### Status Checks
+
 You can define status checks for each environment using Prometheus queries. Status checks are defined in the service configuration and can be used to determine the health or activity of an environment. Each status check has a name, a Prometheus query, and configuration for matching the results to environments.
 For example, to define status checks, you can use the following configuration:
 
 ```yaml
 prometheus:
-    address: http://prometheus.example.local:9090
+  address: http://prometheus.example.local:9090
 statusChecks:
-    healthy:
-        kind: bulk
-        query: min by (namespace) (kube_deployment_status_replicas_ready{namespace=~"env-.+"})
-        matchOn: namespace
-        matchLabel: namespace
-        interval: 30s
-        timeout: 2s
+  healthy:
+    kind: bulk
+    query: min by (namespace) (kube_deployment_status_replicas_ready{namespace=~"env-.+"})
+    matchOn: namespace
+    matchLabel: namespace
+    interval: 30s
+    timeout: 2s
 ```
 
 Alternatively, you can define a static status check using annotations on the namespace. This is useful to create dummy environments or to override the dynamic status check results:
+
 ```yaml
 metadata:
   annotations:
@@ -81,17 +83,17 @@ In addition to annotations you can expose metadata that is resolved dynamically 
 
 ```yaml
 prometheus:
-    address: http://prometheus.example.local:9090
+  address: http://prometheus.example.local:9090
 metadata:
-    owner:
-        type: string
-        kind: bulk
-        query: sum by (namespace, owner) (kube_namespace_labels{})
-        matchOn: namespace
-        matchLabel: namespace
-        extractLabel: owner
-        interval: 5m
-        timeout: 5s
+  owner:
+    type: string
+    kind: bulk
+    query: sum by (namespace, owner) (kube_namespace_labels{})
+    matchOn: namespace
+    matchLabel: namespace
+    extractLabel: owner
+    interval: 5m
+    timeout: 5s
 ```
 
 Metadata is included when calling `GET /v1/environment/{name}` and can be used by clients to display ownership, lifecycle timestamps, or any other contextual information that is available via Prometheus metrics.
@@ -103,7 +105,7 @@ Ignition handling is configured in the service config:
 
 ```yaml
 ignition:
-    type: prometheus
+  type: prometheus
 ```
 
 If no ignition provider is configured, `prometheus` is used as the default provider.
@@ -203,8 +205,8 @@ This will expose Prometheus metrics at `http://localhost:8090/metrics`.
 To run the service locally for development, you need a Kubernetes cluster (e.g. kind, minikube, etc.) and `kubectl` configured to access it.
 There are a few Makefile targets to help with development
 
-
 ### Initial Setup
+
 ```bash
 # Creates a local kubernetes cluster using kind and podman
 make testing/setup
@@ -217,6 +219,7 @@ make testing/examples
 ```
 
 ### Run and test the service locally
+
 ```bash
 # Run the linter (it will auto-fix some issues)
 make lint
@@ -235,6 +238,7 @@ go run ./cmd/autodiscovery \
 ```
 
 ### Install the service in the local cluster using the helm chart
+
 ```bash
 make testing/install-helm
 ```

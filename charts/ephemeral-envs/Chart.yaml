@@ -1,7 +1,7 @@
 apiVersion: v2
 type: application
 name: ephemeral-envs
-description:  Auto-discovery for ephemeral environments on Kubernetes
+description: Auto-discovery for ephemeral environments on Kubernetes
 version: 0.0.1
 appVersion: "main-c402fb3"
 home: https://github.com/sberz/ephemeral-envs

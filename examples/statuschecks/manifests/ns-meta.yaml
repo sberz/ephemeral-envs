@@ -12,4 +12,3 @@ metadata:
     metadata.envs.sberz.de/static-value: "3"
     metadata.envs.sberz.de/static-flag: "true"
     metadata.envs.sberz.de/static-expires: "2024-01-01T12:00:00Z"
-

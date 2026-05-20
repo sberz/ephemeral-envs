@@ -10,7 +10,6 @@ cd "$(dirname "$0")"/..
 : "${IMAGE_NAME:=ghcr.io/sberz/ephemeral-envs}"
 : "${IMAGE_TAG:=local}"
 
-
 export KUBECONFIG="${KIND_KUBECONFIG}"
 
 export KIND_EXPERIMENTAL_PROVIDER="podman"
@@ -25,7 +24,7 @@ log_fatal() {
 }
 
 # Prefix command output with a label (e.g., [KEDA], [GATEWAY], [PROMETHEUS]) for better readability
-prefix_pipe () {
+prefix_pipe() {
 	local prefix="$1"
 	while IFS= read -r line; do
 		echo -e "\033[0;90m[${prefix}]\033[0m $line"
@@ -48,7 +47,7 @@ print_usage() {
 check_dependencies() {
 	local dependencies=("podman" "kind" "kubectl" "helm")
 	for dep in "${dependencies[@]}"; do
-		if ! command -v "$dep" &> /dev/null; then
+		if ! command -v "$dep" &>/dev/null; then
 			log_fatal "Required dependency '$dep' is not installed. Please install it and try again."
 		fi
 	done
@@ -78,7 +77,7 @@ setup_cluster() {
 			    extraPortMappings:
 			      - containerPort: 31080
 			        hostPort: ${INGRESS_PORT}
-			EOF
+		EOF
 
 	log_info "Cluster created. Kubeconfig is available at ${KIND_KUBECONFIG}."
 }
@@ -94,16 +93,16 @@ install_keda() {
 
 	helm upgrade --install keda keda \
 		--repo https://kedacore.github.io/charts \
-		--namespace keda --create-namespace --wait \
-		| prefix_pipe "KEDA"
+		--namespace keda --create-namespace --wait |
+		prefix_pipe "KEDA"
 
 	log_info "KEDA installed."
 }
 
 install_gateway_crd() {
 	log_info "Installing Gateway API CRDs..."
-	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml \
-		| prefix_pipe "GATEWAY-CRD"
+	kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml |
+		prefix_pipe "GATEWAY-CRD"
 	log_info "Gateway API CRDs installed."
 }
 
@@ -133,7 +132,7 @@ install_gateway() {
 			    nodePort: 31080
 			service:
 			  type: NodePort
-			EOF
+		EOF
 
 	log_info "Traefik Gateway Controller installed."
 	log_info "Traefik Dashboard available at http://traefik.env-test.localhost:${INGRESS_PORT}"
@@ -168,7 +167,7 @@ install_prometheus() {
 			          namespace: traefik
 			      hostnames:
 			        - grafana.env-test.localhost
-			EOF
+		EOF
 
 	log_info "Prometheus installed."
 	log_info "Prometheus available at http://prometheus.env-test.localhost:${INGRESS_PORT}"
@@ -218,35 +217,35 @@ check_dependencies
 
 cmd=${1:-}
 case $cmd in
-	help)
-		print_usage
-		;;
-	examples)
-		examples_apply
-		;;
-	install-helm)
-		load_image
-		install_helm
-		;;
-	load-image)
-		load_image
-		;;
-	setup-cluster)
-		check_cluster_exists || setup_cluster
-		install_gateway_crd
-		install_gateway &
-		install_keda &
-		install_prometheus &
-		wait
-		;;
-	setup-minimal)
-		check_cluster_exists || setup_cluster
-		;;
-	teardown)
-		teardown_cluster
-		;;
-	*)
-		print_usage
-		log_fatal "Unknown command: $cmd"
-		;;
+help)
+	print_usage
+	;;
+examples)
+	examples_apply
+	;;
+install-helm)
+	load_image
+	install_helm
+	;;
+load-image)
+	load_image
+	;;
+setup-cluster)
+	check_cluster_exists || setup_cluster
+	install_gateway_crd
+	install_gateway &
+	install_keda &
+	install_prometheus &
+	wait
+	;;
+setup-minimal)
+	check_cluster_exists || setup_cluster
+	;;
+teardown)
+	teardown_cluster
+	;;
+*)
+	print_usage
+	log_fatal "Unknown command: $cmd"
+	;;
 esac
