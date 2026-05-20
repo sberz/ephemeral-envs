@@ -1,2 +1,18 @@
 [env]
 KUBECONFIG = "{{config_root}}/kind-kubeconfig.yaml"
+
+[tasks.fmt]
+description = "Format code"
+depends = ["fmt:*"]
+
+[tasks."fmt:go"]
+description = "Format Go files"
+run = "gofmt -s -w ."
+
+[tasks."fmt:shell"]
+description = "Format shell scripts"
+run = "shfmt -w ."
+
+[tasks."fmt:oxfmt"]
+description = "Format other files with oxfmt"
+run = "npx oxfmt"

@@ -1,0 +1,3 @@
+{
+	"ignorePatterns": ["/charts/ephemeral-envs/templates"]
+}
