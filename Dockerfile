@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.24
+# syntax=docker/dockerfile:1.25
 
 # Build stage
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -o /autodiscovery ./cmd/autodiscovery
 
 # Final image
-FROM alpine:3.23
+FROM alpine:3.24
 
 COPY --from=builder /autodiscovery /autodiscovery
 
