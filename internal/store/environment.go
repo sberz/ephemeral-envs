@@ -56,6 +56,14 @@ func (e *Environment) IsValid() (problems map[string]string) {
 		problems["namespace"] = invalidEmpty
 	}
 
+	e.validateURLs(problems)
+	e.validateStatusChecks(problems)
+	e.validateMetaProbes(problems)
+
+	return problems
+}
+
+func (e *Environment) validateURLs(problems map[string]string) {
 	// URL must be not be nil but can be empty
 	if e.URL == nil {
 		problems["url"] = invalidNil
@@ -70,7 +78,9 @@ func (e *Environment) IsValid() (problems map[string]string) {
 			}
 		}
 	}
+}
 
+func (e *Environment) validateStatusChecks(problems map[string]string) {
 	// StatusChecks must be not be nil but can be empty
 	if e.StatusChecks == nil {
 		problems["statusChecks"] = invalidNil
@@ -84,7 +94,9 @@ func (e *Environment) IsValid() (problems map[string]string) {
 			}
 		}
 	}
+}
 
+func (e *Environment) validateMetaProbes(problems map[string]string) {
 	if e.MetaProbes == nil {
 		problems["metadata"] = invalidNil
 	} else {
@@ -97,8 +109,6 @@ func (e *Environment) IsValid() (problems map[string]string) {
 			}
 		}
 	}
-
-	return problems
 }
 
 // Update updates the environment with the provided values.

@@ -80,7 +80,7 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 	log = log.With("query", query)
 	log.DebugContext(ctx, "executing Prometheus query")
 
-	res, warnings, err := q.Prometheus.apiClient.Query(
+	res, warnings, infos, err := q.Prometheus.apiClient.Query(
 		ctx, query, time.Now(),
 		v1.WithTimeout(q.cfg.Timeout),
 		// Limit the results to 2 to detect if there are too many results (we expect 0 or 1)
@@ -88,6 +88,9 @@ func (q *SingleValueQuery) queryForEnvironment(ctx context.Context, name string,
 	)
 	if err != nil {
 		return model.ZeroSample, fmt.Errorf("query failed: %w", err)
+	}
+	if len(infos) > 0 {
+		log.DebugContext(ctx, "prometheus query succeeded with infos", "infos", infos)
 	}
 	if len(warnings) > 0 {
 		log.WarnContext(ctx, "prometheus query succeeded with warnings", "warnings", warnings)
