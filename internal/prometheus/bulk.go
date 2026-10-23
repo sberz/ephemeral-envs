@@ -97,12 +97,15 @@ func (q *BulkValueQuery) queryForEnvironment(ctx context.Context, envName string
 
 	// Perform the bulk query
 	log.DebugContext(ctx, "executing Prometheus query")
-	res, warnings, err := q.Prometheus.apiClient.Query(
+	res, warnings, infos, err := q.Prometheus.apiClient.Query(
 		ctx, q.cfg.Query, time.Now(),
 		v1.WithTimeout(q.cfg.Timeout),
 	)
 	if err != nil {
 		return model.ZeroSample, fmt.Errorf("query failed: %w", err)
+	}
+	if len(infos) > 0 {
+		log.DebugContext(ctx, "prometheus query succeeded with infos", "infos", infos)
 	}
 	if len(warnings) > 0 {
 		log.WarnContext(ctx, "prometheus query succeeded with warnings", "warnings", warnings)
