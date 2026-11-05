@@ -240,13 +240,12 @@ func resolvePrometheusAddress() string {
 func createNamespace(t *testing.T, ctx context.Context, clientset *kubernetes.Clientset, namespace string, envName string, annotations map[string]string) {
 	t.Helper()
 
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+	ns := &corev1.Namespace{
 		Name: namespace,
 		Labels: map[string]string{
 			LabelEnvName: envName,
 		},
-		Annotations: annotations,
-	}}
+		Annotations: annotations}
 
 	if _, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create namespace error = %v", err)

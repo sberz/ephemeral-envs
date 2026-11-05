@@ -2,7 +2,7 @@ module github.com/sberz/ephemeral-envs
 
 toolchain go1.27.3
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/goccy/go-yaml v1.19.2

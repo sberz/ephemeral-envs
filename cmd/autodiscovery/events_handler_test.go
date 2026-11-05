@@ -22,13 +22,12 @@ func TestEventHandlerBuildStatusChecksAnnotationOverridesProber(t *testing.T) {
 		"from_prober": extraProber,
 	}, nil)
 
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+	ns := &corev1.Namespace{
 		Name: "env-a",
 		Annotations: map[string]string{
 			AnnotationEnvStatusCheckPrefix + "prom_ok": "0",
 			AnnotationEnvStatusCheckPrefix + "active":  "1",
-		},
-	}}
+		}}
 
 	checks := h.buildStatusChecks(t.Context(), "a", ns)
 
@@ -68,12 +67,11 @@ func TestEventHandlerBuildMetadataProbesAnnotationOverridesProber(t *testing.T) 
 		"from_prober": extraProber,
 	})
 
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+	ns := &corev1.Namespace{
 		Name: "env-a",
 		Annotations: map[string]string{
 			AnnotationEnvMetadataPrefix + "owner": `"team-annotation"`,
-		},
-	}}
+		}}
 
 	meta := h.buildMetadataProbes(t.Context(), "a", ns)
 
@@ -101,7 +99,7 @@ func TestEventHandlerHandleNamespaceUpdateRenameAndDelete(t *testing.T) {
 	h := NewEventHandler(t.Context(), s, nil, nil)
 
 	created := time.Unix(1_700_000_000, 0).UTC()
-	oldNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+	oldNS := &corev1.Namespace{
 		Name:              "env-a",
 		CreationTimestamp: metav1.NewTime(created),
 		Labels: map[string]string{
@@ -109,8 +107,7 @@ func TestEventHandlerHandleNamespaceUpdateRenameAndDelete(t *testing.T) {
 		},
 		Annotations: map[string]string{
 			AnnotationEnvURLPrefix + "app": "https://old.example.test",
-		},
-	}}
+		}}
 
 	h.HandleNamespaceAdd(t.Context(), oldNS)
 
